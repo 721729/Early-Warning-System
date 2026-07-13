@@ -1,0 +1,33 @@
+{
+  "B": {
+    "accuracy": 0.9391,
+    "f1": 0.8633,
+    "FPR": 0.0605,
+    "FNR": 0.0625,
+    "corr_err_pct": 24.25,
+    "RUL_d": 1213.9,
+    "phys": 1.0,
+    "tp": 60,
+    "fp": 15,
+    "tn": 233,
+    "fn": 4
+  },
+  "C": {
+    "accuracy": 0.9423,
+    "f1": 0.8548,
+    "FPR": 0.0282,
+    "FNR": 0.1719,
+    "corr_err_pct": 24.25,
+    "RUL_d": 1213.9,
+    "phys": 1.0,
+    "tp": 53,
+    "fp": 7,
+    "tn": 241,
+    "fn": 11
+  },
+  "model": "PatchTST_Original_GitHub_noReVIN",
+  "params": 473907,
+  "n": 312,
+  "best_pct_B": 99,
+  "best_pct_C": 99
+}
