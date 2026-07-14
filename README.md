@@ -19,7 +19,8 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 | 仿真数据 | NumPy + Pandas, AR(1) 过程 + 噪声注入 | 6 个月分钟级, 16 字段 |
 | 后端 API | FastAPI + SQLAlchemy + Pydantic | JWT 认证 + RBAC + 审计日志 |
 | 数据库 | InfluxDB 2.7 / MySQL 8.0 / Redis 7 | Docker Compose 一键部署 |
-| 可视化 | Canvas 纯前端 HTML + ECharts CDN | 浏览器直接打开, 无需后端 |
+| Vue 前端 | Vue 3 + Vite + ECharts + Axios | 登录 → JWT → 设备树 → 健康度剖面图 → 预警面板 |
+| 可视化 | Canvas 纯前端 HTML + ECharts CDN | 无需后端, 浏览器直接打开 |
 
 **全部组件开源、兼容 Linux。**
 
@@ -106,11 +107,26 @@ green-power-sentinel/
 │   ├── routers/              # auth / health / alert / predict / maintenance
 │   ├── middleware/auth.py    # JWT解码 + Redis黑名单 + RBAC (4级权限)
 │   └── services/inference_service.py  # 加载原版PatchTST权重, 提供真实推理
-├── canvas/incinerator.html   # 纯前端可视化 Demo (ECharts, 浏览器打开即用)
-├── docker-compose.yml        # InfluxDB + MySQL + Redis 一键部署
-├── deploy/init.sql           # 建表 + 默认管理员 (admin/admin123)
-└── 技术报告.md               # 详细技术报告 v2.0
+├── frontend/                  # Vue 3 前端
+│   ├── src/views/Login.vue    # 登录页 (输入校验 + 防重复提交)
+│   ├── src/views/Dashboard.vue # 仪表盘 (设备树+剖面图+预警+趋势+运维弹窗)
+│   ├── src/router/index.js    # 路由守卫 (未登录→跳登录)
+│   └── src/api/request.js     # Axios (自动带JWT, 401跳登录)
+├── canvas/incinerator.html    # 纯前端可视化 Demo (ECharts, 浏览器打开即用)
+├── docker-compose.yml         # InfluxDB + MySQL + Redis 一键部署
+├── deploy/init.sql            # 建表 + 默认管理员 (admin/admin123)
+└── 技术报告.md                # 详细技术报告 v2.0
 ```
+
+## 一个月竞赛成果
+
+- [x] 仿真数据生成 (6个月分钟级, 16字段, 含注入异常)
+- [x] PatchTST 三组消融实验 (纯机理/纯 AI/融合模型, F1=0.86, FPR 砍半)
+- [x] FastAPI 全接口实现 (健康度/预警/趋势/工单/认证, JWT + RBAC)
+- [x] Canvas 可视化 Demo (浏览器直接打开)
+- [x] Vue 3 前端 (登录 + 设备树 + 剖面图 + 预警面板 + 趋势曲线 + 运维弹窗)
+- [x] Docker Compose 一键部署
+- [x] GitHub 代码仓库 + 完整 README
 
 ## 安全设计
 
