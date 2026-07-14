@@ -48,22 +48,21 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 ## 快速开始
 
 ### 环境要求
-- Linux (Ubuntu 22.04+) / macOS
-- Python 3.10+, Docker & Docker Compose
+- Linux (Ubuntu 22.04+) / macOS, Python 3.12+, Docker & Docker Compose
 
 ### 1. 克隆 & 环境
 
 ```bash
-git clone <repo-url> && cd green-power-sentinel
+git clone https://github.com/721729/Early-Warning-System.git && cd green-power-sentinel
 cp .env.example .env
-python3 -m venv .venv && source .venv/bin/activate
+uv venv && source .venv/bin/activate                # 或 python3 -m venv .venv
 ```
 
 ### 2. 生成仿真数据
 
 ```bash
 cd ml
-pip install -r requirements.txt
+uv pip install -r requirements.txt                  # 或 pip install -r requirements.txt
 python simulate.py          # → simulation_data.csv (82MB, 259K 行)
 ```
 
@@ -85,7 +84,7 @@ open ../canvas/incinerator.html    # 纯前端, 无需后端
 ```bash
 docker-compose up -d        # 起 InfluxDB + MySQL + Redis
 cd ../backend
-pip install -r requirements.txt
+uv pip install -r requirements.txt
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
 # 浏览器打开 http://localhost:8000/docs → Swagger UI
 # POST /api/v1/auth/login {"username":"admin","password":"admin123"} 获取 token
