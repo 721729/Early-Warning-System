@@ -16,7 +16,7 @@ class AutoCreateWO(BaseModel):
 
 @router.get("/workorders")
 async def list_workorders(
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ) -> List[dict]:
     """所有工单列表"""
