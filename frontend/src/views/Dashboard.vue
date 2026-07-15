@@ -241,15 +241,15 @@ async function pollAI() {
     }))
 
     // 传感器数据
-    const score = d1.ai_anomaly_score || 0
-    const scoreLabel = score > 1.0 ? '⚠ 异常' : score > 0.6 ? '⚡ 关注' : '✓ 正常'
+    const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
+    const h = d1.health || 'green'
     sensors.value = [
-      { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: (d1.flue_temp || 570) < 550 },
-      { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: (d1.hcl_conc || 1000) > 1500 },
-      { label: 'AI 异常检测', value: scoreLabel, unit: '', warn: score > 0.6, isText: true },
-      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: (d1.corrosion_rate || 0) > 0.30 },
-      { label: '壁厚预测', value: (d1.wall_thickness_ai || d1.wall_thickness || 5.9).toFixed(2), unit: 'mm', warn: false },
-      { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: (d1.rul_days || 0) < 100 },
+      { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 },
+      { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 },
+      { label: 'AI 异常检测', value: healthMap[h] || '✓ 正常', unit: '', warn: h !== 'green', isText: true },
+      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 0.25 },
+      { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4.0 },
+      { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 100 },
     ]
 
     // 预警触发时显示工单链接 + 运维建议

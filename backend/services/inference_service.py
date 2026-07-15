@@ -76,18 +76,20 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # 判定: AI MSE为主(实时仿真数据MSE~0.0001-0.0008, 阈值0.00025)
-    mse_high = mse > 0.00025    # 超正常MSE 2.5倍
-    mse_danger = mse > 0.0005   # 严重偏离
-    rate_high = rate > 0.25     # 腐蚀加速
+    # 判定阈值 (与异常得分归一化共用)
+    MSE_NORMAL = 0.00025
+    mse_high = mse > MSE_NORMAL
+    mse_danger = mse > MSE_NORMAL * 2
+    rate_high = rate > 0.25
     wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
 
-    if wall_danger:                      alert_level = "red"
-    elif mse_danger and rate_high:        alert_level = "orange"
-    elif mse_high:                        alert_level = "yellow"
-    else:                                 alert_level = "green"
+    if wall_danger:                       alert_level = "red"
+    elif mse_danger and rate_high:         alert_level = "orange"
+    elif mse_high:                         alert_level = "yellow"
+    else:                                  alert_level = "green"
 
-    score = min(mse / max(0.0015, 1e-8), 1.0)
+    # 异常得分: 基于相同阈值, 1.0=严重异常
+    score = min(mse / max(MSE_NORMAL * 2, 1e-8), 1.0)
 
     return {
         "corrosion_rate": round(rate, 4),
