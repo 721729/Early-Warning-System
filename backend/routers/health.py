@@ -33,12 +33,14 @@ async def ai_status(): return {"ai_ready": _MODEL_READY}
 async def overview(
     plant_id: int = Query(1), advance: int = Query(0, description="推进小时数，0=不推进"),
     reset: bool = Query(False, description="重置仿真"),
+    danger: bool = Query(False, description="危险模式——延长异常期+提高A"),
     user: dict = Depends(require_role(["admin","值长","检修班长","厂长","管理员"]))
 ) -> List[dict]:
     global _last_hour, _sim
     result = [dict(d) for d in _DEV]
 
-    if reset: _sim = Simulation()  # 重置
+    if reset: _sim = Simulation()
+    _sim.danger = danger  # 危险模式标记
     if advance > 0: _sim.advance_to(_sim.hours + advance)
     elif _sim.hours < 48: _sim.advance_to(48)  # 首次自动初始化
     window, hist = _sim.window(48)
