@@ -104,11 +104,25 @@
                 <span class="am-time">{{ a.time }}</span>
               </div>
               <div class="am-body">{{ a.desc }}</div>
-              <div class="am-ai">🤖 AI置信度: {{ a.confidence }}% | 预估损失: ¥{{ a.loss.toLocaleString() }}</div>
+              <div class="am-ai">🤖 AI检测 | ⏱ 提前{{ a.rul_days || '?' }}天预警 | 预估损失: ¥{{ (a.loss||0).toLocaleString() }}</div>
+              <div class="am-actions"><button class="btn btn-xs btn-primary" @click="showAdviceForAlert(a)">📋 运维建议</button></div>
             </div>
           </section>
         </div>
       </main>
+    </div>
+
+    <!-- 运维建议弹窗 -->
+    <div v-if="adviceData" class="modal-overlay" @click.self="adviceData=null">
+      <div class="modal"><h3>🔧 运维建议</h3>
+        <div class="advice-sect"><b>故障现象:</b> {{ adviceData.phenomenon }}</div>
+        <div class="advice-sect"><b>根因诊断:</b> {{ adviceData.root_cause }}</div>
+        <div class="advice-sect"><b>处理方案:</b> {{ adviceData.action_plan }}</div>
+        <div class="advice-sect"><b>备件清单:</b> {{ adviceData.spare_parts }}</div>
+        <div class="advice-sect"><b>历史案例:</b> {{ adviceData.similar_cases }}</div>
+        <p style="margin-top:8px;font-size:11px;color:#546e7a">工单ID: #{{ adviceData.work_order_id }}</p>
+        <button class="btn btn-primary" style="margin-top:8px" @click="adviceData=null">关闭</button>
+      </div>
     </div>
   </div>
 </template>
@@ -147,6 +161,15 @@ async function saveNotice(n) {
 async function delNotice(nid) {
   if (!confirm('确认删除此通知？')) return
   try { await notifyAPI.delete(nid); loadNotices() } catch(_) {}
+}
+// 运维建议弹窗
+const adviceData = ref(null)
+async function showAdviceForAlert(a) {
+  try {
+    const { maintenanceAPI } = await import('../api/request')
+    const r = await maintenanceAPI.advice(a.id || 1)
+    adviceData.value = r.data
+  } catch(_) { alert('运维建议加载失败') }
 }
 
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
@@ -209,15 +232,17 @@ async function pollAI() {
       { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: (d1.rul_days || 0) < 100 },
     ]
 
-    // 预警
-    if (d1.health === 'orange' || d1.health === 'red') {
+    // 预警触发时显示工单链接 + 运维建议
+    if (d1.health === 'yellow' || d1.health === 'orange' || d1.health === 'red') {
       mockAlerts.value = [{
         id: Date.now(), level: d1.health,
         title: d1.health === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
         time: new Date().toLocaleTimeString('zh-CN'),
         desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀速率${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI异常得分${(d1.ai_anomaly_score||0).toFixed(2)}, 壁厚${(d1.wall_thickness_ai||d1.wall_thickness||0).toFixed(2)}mm`,
         confidence: +((d1.ai_anomaly_score || 0) * 100).toFixed(1),
-        loss: 420000
+        loss: 420000,
+        rul_days: (d1.rul_days||0).toFixed(0),
+        workorder_id: d1.workorder_id || null
       }]
     } else {
       mockAlerts.value = []
@@ -342,6 +367,11 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .btn-sm { padding: 4px 10px; font-size: 11px; }
 .btn-del { border-color: #ff5252; color: #ff5252; }
 .btn-del:hover { background: rgba(255,82,82,.1); }
+.am-actions { margin-top: 6px; }
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.7); display: flex; align-items: center; justify-content: center; z-index: 999; }
+.modal { background: #111827; border: 1px solid #1e2d3d; border-radius: 10px; padding: 24px; width: 520px; max-width: 90vw; max-height: 80vh; overflow-y: auto; }
+.modal h3 { font-size: 16px; color: #00e5ff; margin-bottom: 14px; }
+.advice-sect { font-size: 13px; color: #b0bec5; margin-bottom: 10px; line-height: 1.6; }
 .btn-time { padding: 3px 8px; border: 1px solid #37474f; border-radius: 3px; background: transparent; color: #00e5ff; cursor: pointer; font-size: 10px; margin: 0 2px; }
 .btn-time:hover { background: rgba(0,229,255,.1); }
 .time-ctrl { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8892b0; }
