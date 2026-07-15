@@ -2,6 +2,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import Login from '../views/Login.vue'
 import Dashboard from '../views/Dashboard.vue'
 import AlertHistory from '../views/AlertHistory.vue'
+import WorkOrders from '../views/WorkOrders.vue'
 import AuditLog from '../views/AuditLog.vue'
 import UserManagement from '../views/UserManagement.vue'
 import AIAnalysis from '../views/AIAnalysis.vue'
@@ -10,6 +11,7 @@ const routes = [
   { path: '/login', name: 'Login', component: Login, meta: { guest: true } },
   { path: '/', name: 'Dashboard', component: Dashboard, meta: { requiresAuth: true } },
   { path: '/alerts', name: 'AlertHistory', component: AlertHistory, meta: { requiresAuth: true } },
+  { path: '/workorders', name: 'WorkOrders', component: WorkOrders, meta: { requiresAuth: true } },
   { path: '/audit', name: 'AuditLog', component: AuditLog, meta: { requiresAuth: true } },
   { path: '/users', name: 'UserManagement', component: UserManagement, meta: { requiresAuth: true } },
   { path: '/ai', name: 'AIAnalysis', component: AIAnalysis, meta: { requiresAuth: true } },

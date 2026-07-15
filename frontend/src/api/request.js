@@ -54,6 +54,7 @@ export const predictAPI = {
 
 export const maintenanceAPI = {
   advice: (alertId) => request.get(`/maintenance/advice/${alertId}`),
+  workorders: () => request.get('/maintenance/workorders'),
   autoCreateWO: (alertId) => request.post('/maintenance/workorder/auto_create', { alert_id: alertId })
 }
 
