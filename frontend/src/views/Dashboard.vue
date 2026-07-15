@@ -211,20 +211,20 @@ async function pollAI() {
   try {
     const r = await request.get('/health/overview', { params: { plant_id: 1, time_offset: timeOffset.value } })
     const devs = r.data
-    console.log('pollAI response:', devs[0]?.health, 'offset:', timeOffset.value)
     if (!devs || !devs.length) return
 
-    // 设备1: 高温过热器入口段 (主监控对象)
-    const d1 = devs[0]
-    runDays.value = timeOffset.value || d1.trend?.length || 195
+    // 设备1: 高温过热器入口段 (主监控对象)——每个字段给默认值防崩
+    const d1 = devs[0] || {}
+    const safeGet = (obj, key, fallback) => (obj && obj[key] != null) ? obj[key] : fallback
+    runDays.value = timeOffset.value || safeGet(d1, 'trend', {length:195}).length || 195
     Object.assign(data, {
-      wall_thickness: d1.wall_thickness_ai || d1.wall_thickness || 5.90,
-      corrosion_rate: d1.corrosion_rate || 0.35,
-      rul_days: d1.rul_days || 5000,
-      ai_alert: d1.health || 'green',
-      hcl_conc: d1.hcl_conc || 1000,
-      flue_temp: d1.flue_temp || 570,
-      ai_score: d1.ai_anomaly_score || 0,
+      wall_thickness: safeGet(d1, 'wall_thickness_ai', 5.9),
+      corrosion_rate: safeGet(d1, 'corrosion_rate', 0.2),
+      rul_days: safeGet(d1, 'rul_days', 5000),
+      ai_alert: safeGet(d1, 'health', 'green'),
+      hcl_conc: safeGet(d1, 'hcl_conc', 1000),
+      flue_temp: safeGet(d1, 'flue_temp', 570),
+      ai_score: safeGet(d1, 'ai_anomaly_score', 0.1),
     })
 
     // 存储趋势数据供图表使用
@@ -269,7 +269,9 @@ async function pollAI() {
     }
     activeAlerts.value = mockAlerts.value.length
     nextTick(drawTrend)
-  } catch(_) {}
+  } catch(e) {
+    console.warn('[绿电哨兵] AI数据拉取失败:', e.message || e)
+  }
 }
 
 onMounted(() => {

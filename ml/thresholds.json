@@ -1,0 +1,10 @@
+{
+  "mse_normal_99pct": 0.000208,
+  "mse_normal_mean": 0.000151,
+  "mse_anomaly_mean": 0.000795,
+  "separation_ratio": 5.27,
+  "n_normal": 47,
+  "n_anomaly": 31,
+  "note": "realtime仿真数据的MSE分布——推理时以此为准",
+  "_disclaimer": "仿真数据用阿伦尼乌斯方程生成，AI用同一方程约束——这是验证架构可行性，不是证明模型准确性。真实场景需Pilot阶段用检修壁厚数据重新校准。"
+}

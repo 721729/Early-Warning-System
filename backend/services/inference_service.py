@@ -18,7 +18,7 @@ from ml.config import MATERIAL_PARAMS, SIMULATION
 _DEVICE = torch.device("cpu")
 _MODEL = None
 _NORM = None
-_THRESHOLD = 0.002  # 训练集MSE 95分位，高于此值=异常
+_MSE_THRESHOLD = 0.00025  # 默认值，启动时从thresholds.json加载覆盖
 
 
 def make_config(seq_len=48):
@@ -34,8 +34,8 @@ def make_config(seq_len=48):
 
 
 def load_model(model_path=None):
-    """FastAPI 启动时调用一次"""
-    global _MODEL, _NORM
+    """FastAPI 启动时调用一次，自动加载数据驱动阈值"""
+    global _MODEL, _NORM, _MSE_THRESHOLD
     root = _ML_DIR
     model_path = model_path or (root / "model_c_fusion.pth")
     norm_path = root / "norm_params.npz"
@@ -45,6 +45,16 @@ def load_model(model_path=None):
     _MODEL = PatchTST_Orig(config).to(_DEVICE)
     _MODEL.load_state_dict(torch.load(model_path, map_location=_DEVICE, weights_only=True))
     _MODEL.eval()
+
+    # 从数据驱动阈值文件加载（训练后自动生成）
+    try:
+        import json
+        with open(root / "thresholds.json") as f:
+            t = json.load(f)
+        _MSE_THRESHOLD = t.get("mse_normal_99pct", 0.00025)
+        print(f"[AI] 阈值已加载: {_MSE_THRESHOLD} (训练数据99分位, 分离比{t.get('separation_ratio','?')}x)")
+    except:
+        print(f"[AI] 使用默认阈值: {_MSE_THRESHOLD}")
     return True
 
 
@@ -76,20 +86,20 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # 判定阈值 (与异常得分归一化共用)
-    MSE_NORMAL = 0.00025
-    mse_high = mse > MSE_NORMAL
-    mse_danger = mse > MSE_NORMAL * 2
+    # 判定: 使用数据驱动阈值(从thresholds.json加载)
+    thr = _MSE_THRESHOLD
+    mse_high = mse > thr
+    mse_danger = mse > thr * 2
     rate_high = rate > 0.25
     wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
 
-    if wall_danger:                       alert_level = "red"
-    elif mse_danger and rate_high:         alert_level = "orange"
-    elif mse_high:                         alert_level = "yellow"
-    else:                                  alert_level = "green"
+    if wall_danger:                        alert_level = "red"
+    elif mse_danger and rate_high:          alert_level = "orange"
+    elif mse_high:                          alert_level = "yellow"
+    else:                                   alert_level = "green"
 
-    # 异常得分: 基于相同阈值, 1.0=严重异常
-    score = min(mse / max(MSE_NORMAL * 2, 1e-8), 1.0)
+    # 异常得分归一化: 0=正常, 1=MSE达到2倍阈值
+    score = min(mse / max(thr * 2, 1e-8), 1.0)
 
     return {
         "corrosion_rate": round(rate, 4),
