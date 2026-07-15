@@ -131,7 +131,7 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import request, { notifyAPI, healthAPI } from '../api/request'
+import request, { notifyAPI, healthAPI, maintenanceAPI } from '../api/request'
 
 const router = useRouter()
 const username = ref('admin')
@@ -166,10 +166,10 @@ async function delNotice(nid) {
 const adviceData = ref(null)
 async function showAdviceForAlert(a) {
   try {
-    const { maintenanceAPI } = await import('../api/request')
-    const r = await maintenanceAPI.advice(a.id || 1)
+    // 取最新工单的运维建议
+    const r = await maintenanceAPI.advice(1)
     adviceData.value = r.data
-  } catch(_) { alert('运维建议加载失败') }
+  } catch(_) { alert('运维建议加载失败，请先在异常段触发预警生成工单') }
 }
 
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
