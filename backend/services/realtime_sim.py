@@ -27,8 +27,8 @@ class Simulation:
         return b + np.random.randn() * s
 
     def _A_for_hour(self, h):
-        """腐蚀加速: 正常期A=200, 异常期A=1500 — 加速7.5倍"""
-        if self.a_start <= h: return 1500.0
+        """腐蚀加速: 正常A=200, 异常14天A=1500, 之后恢复A=200"""
+        if self.a_start <= h < self.a_start + 336: return 1500.0
         return 200.0
 
     def advance_to(self, target):

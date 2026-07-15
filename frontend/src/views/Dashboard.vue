@@ -161,13 +161,13 @@ async function jumpToAnomaly() {
   } catch(e) {}
 }
 
-// 跳转到危险工况（壁厚逼近3.0mm红线）
+// 跳转到恶化工况（壁厚显著下降）
 async function jumpToDanger() {
   autoMode.value = false
   try {
     await request.get('/health/overview', { params: { reset: true } })
-    // 推进到约500天——在高腐蚀率下壁厚逼近危险线
-    const r = await request.get('/health/overview', { params: { advance: 12000 } })
+    // 推进到约200天——经历正常+异常14天+恢复期，壁厚显著减薄
+    const r = await request.get('/health/overview', { params: { advance: 5000 } })
     if (r.data?.length) updateDashboard(r.data)
   } catch(e) {}
 }
