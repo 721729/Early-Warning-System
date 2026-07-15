@@ -33,6 +33,14 @@
           <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">化学+AI 实时判定</div></div>
         </div>
 
+        <!-- 通知栏 -->
+        <div v-if="notices.length" class="notice-bar">
+          <span class="notice-icon">📢</span>
+          <div class="notice-scroll">
+            <span v-for="n in notices" :key="n.id" class="notice-item">{{ n.content }} <small>({{ n.created_by }} · {{ n.created_at }})</small></span>
+          </div>
+        </div>
+
         <!-- 焚烧炉剖面图 + 实时数据 -->
         <div class="row2">
           <section class="card boiler">
@@ -88,11 +96,13 @@ import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { startSimulation } from '../api/simulator'
+import { notifyAPI } from '../api/request'
 
 const router = useRouter()
 const username = ref('admin')
 const now = ref('')
 const runDays = ref(195)
+const notices = ref([])
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
 const activeAlerts = ref(1)
 const sensors = ref([])
@@ -108,7 +118,11 @@ const healthDevs = ref([
 const clock = setInterval(() => { now.value = new Date().toLocaleString('zh-CN') }, 1000)
 
 let stopSim = null
+async function loadNotices() {
+  try { const r = await notifyAPI.list(); notices.value = r.data } catch(_) {}
+}
 onMounted(() => {
+  loadNotices()
   stopSim = startSimulation((d) => {
     Object.assign(data, d)
     runDays.value = 195 + Math.floor(Math.random() * 3)
@@ -229,4 +243,9 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .am-body { font-size: 12px; color: #b0bec5; margin: 4px 0; line-height: 1.4; }
 .am-ai { font-size: 10px; color: #00bcd4; }
 .empty { color: #546e7a; font-size: 13px; text-align: center; padding: 30px; }
+.notice-bar { background: #1a2332; border: 1px solid #1e2d3d; border-radius: 6px; padding: 8px 14px; display: flex; align-items: center; gap: 10px; font-size: 12px; color: #ffab40; }
+.notice-icon { font-size: 16px; flex-shrink: 0; }
+.notice-scroll { overflow: hidden; white-space: nowrap; }
+.notice-item { margin-right: 40px; }
+.notice-item small { color: #546e7a; margin-left: 8px; }
 </style>

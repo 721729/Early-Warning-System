@@ -57,4 +57,17 @@ export const maintenanceAPI = {
   autoCreateWO: (alertId) => request.post('/maintenance/workorder/auto_create', { alert_id: alertId })
 }
 
+export const userAPI = {
+  list: () => request.get('/users'),
+  create: (data) => request.post('/users', data),
+  update: (uid, data) => request.put(`/users/${uid}`, data),
+  changePassword: (uid, data) => request.put(`/users/${uid}/password`, data)
+}
+
+export const notifyAPI = {
+  list: () => request.get('/notifications'),
+  create: (content) => request.post('/notifications', { content }),
+  delete: (nid) => request.delete(`/notifications/${nid}`)
+}
+
 export default request
