@@ -49,7 +49,10 @@ async def get_advice(
     """根据预警内容动态生成运维建议(AI推理结果驱动)"""
     alert = db.query(AlertLog).filter(AlertLog.id == alert_id).first()
     if not alert:
-        return {"alert_id": alert_id, "phenomenon": "预警不存在"}
+        # 回退到最新一条预警
+        alert = db.query(AlertLog).order_by(AlertLog.id.desc()).first()
+    if not alert:
+        return {"alert_id": alert_id, "phenomenon": "暂无预警记录，请先在异常段触发预警"}
 
     wo = db.query(WorkOrder).filter(WorkOrder.alert_id == alert_id).first()
 

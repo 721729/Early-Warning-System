@@ -194,10 +194,9 @@ async function delNotice(nid) {
 const adviceData = ref(null)
 async function showAdviceForAlert(a) {
   try {
-    // 取最新工单的运维建议
-    const r = await maintenanceAPI.advice(1)
+    const r = await maintenanceAPI.advice(a.id || 9999)
     adviceData.value = r.data
-  } catch(_) { alert('运维建议加载失败，请先在异常段触发预警生成工单') }
+  } catch(_) { alert('运维建议加载失败') }
 }
 
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
