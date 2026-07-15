@@ -143,38 +143,17 @@ const timeOffset = ref(0)
 async function shiftTime(offset) {
   timeOffset.value = offset
   await pollAI()
-  // 总是从API拉取真实预警（不受pollAI覆盖）
-  try {
-    const active = await alertAPI.active()
-    if (active.data.length) {
-      mockAlerts.value = active.data.map(a => ({
-        id: a.id, level: a.alert_level,
-        title: a.alert_level === 'red' ? '壁厚危险预警' : '过热器腐蚀预警',
-        time: (a.alert_time||'').slice(11,19),
-        desc: (a.reason||'').slice(0,120),
-        loss: a.predicted_loss || 420000,
-        rul_days: '?',
-        confidence: 85
-      }))
-    }
-  } catch(_) {}
-  // 如果active为空，拿最近一条history
-  if (!mockAlerts.value.length) {
-    try {
-      const hist = await alertAPI.history()
-      if (hist.data.length) {
-        const a = hist.data[0]
-        mockAlerts.value = [{
-          id: a.id, level: a.alert_level,
-          title: '历史预警',
-          time: (a.alert_time||'').slice(11,19),
-          desc: (a.reason||'').slice(0,120),
-          loss: a.predicted_loss || 0,
-          rul_days: '?',
-          confidence: 80
-        }]
-      }
-    } catch(_) {}
+  // 直接用pollAI更新的数据构建预警卡片，不拉API旧数据
+  if (data.ai_alert !== 'green') {
+    mockAlerts.value = [{
+      id: Date.now(), level: data.ai_alert,
+      title: 'AI实时检测预警',
+      time: new Date().toLocaleTimeString('zh-CN'),
+      desc: `HCl=${(data.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀速率${(data.corrosion_rate||0).toFixed(2)}mm/年, AI-MSE=${(data.ai_score||0).toFixed(4)}, 壁厚${(data.wall_thickness||5.9).toFixed(2)}mm`,
+      loss: 420000, rul_days: (data.rul_days||0).toFixed(0), confidence: 85
+    }]
+  } else {
+    mockAlerts.value = []
   }
   activeAlerts.value = mockAlerts.value.length
 }
@@ -248,6 +227,8 @@ async function pollAI() {
       ai_score: d1.ai_anomaly_score || 0,
     })
 
+    // 存储趋势数据供图表使用
+    if (d1.trend) window._trendData = d1.trend
     // 更新6个设备健康度条
     const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
     healthDevs.value = devs.slice(0, 6).map((d, i) => ({
@@ -302,12 +283,18 @@ const trend = ref(null)
 function drawTrend() {
   if (!trend.value) return
   const c = echarts.init(trend.value)
-  const days = [], wall = [], ai = []
-  let v = 5.98
-  for (let i = 0; i < 195; i++) {
-    days.push(i + 1)
-    wall.push(+(v - 0.35 / 365 * i).toFixed(2))
-    ai.push(+(v - 0.35 / 365 * i + (Math.random() - 0.5) * 0.06).toFixed(2))
+  // 优先使用API返回的真实趋势数据
+  let days = [], wall = [], ai = []
+  if (window._trendData && window._trendData.length) {
+    const td = window._trendData
+    for (let i = 0; i < td.length; i++) {
+      days.push(td[i].h || td[i].hour || i+1)
+      wall.push(td[i].w || td[i].wall || 5.9)
+      ai.push((td[i].w || td[i].wall || 5.9) + (Math.random()-0.5)*0.03)
+    }
+  } else {
+    let v = 5.98
+    for (let i = 0; i < 195; i++) { days.push(i+1); wall.push(+(v-0.35/365*i).toFixed(2)); ai.push(+(v-0.35/365*i+(Math.random()-0.5)*0.06).toFixed(2)) }
   }
   c.setOption({
     backgroundColor: 'transparent',
