@@ -106,19 +106,18 @@ green-power-sentinel/
 │   ├── src/router/index.js    # 路由守卫 (未登录→跳登录)
 │   └── src/api/request.js     # Axios (自动带JWT, 401跳登录)
 ├── docker-compose.yml         # InfluxDB + MySQL + Redis 一键部署
-├── deploy/init.sql            # 建表 + 默认管理员 (admin/admin123)
-└── 技术报告.md                # 详细技术报告 v2.0
+├── deploy/init.sql            # 建表 + 默认管理员
+├── start.sh                   # 一键启动
+└── stop.sh                    # 一键停止
 ```
 
 ## 一个月竞赛成果
 
 - [x] 仿真数据生成 (6个月分钟级, 16字段, 含注入异常)
-- [x] PatchTST 三组消融实验 (纯机理/纯 AI/融合模型, F1=0.86, FPR 砍半)
-- [x] FastAPI 全接口实现 (健康度/预警/趋势/工单/认证, JWT + RBAC)
-- [x] Canvas 可视化 Demo (浏览器直接打开)
-- [x] Vue 3 前端 (登录 + 设备树 + 剖面图 + 预警面板 + 趋势曲线 + 运维弹窗)
-- [x] Docker Compose 一键部署
-- [x] GitHub 代码仓库 + 完整 README
+- [x] PatchTST 消融实验 (纯机理/纯 AI/融合, F1=0.86, FPR 砍半)
+- [x] FastAPI 后端 (5模块16端点, JWT + RBAC)
+- [x] Vue 3 前端 (登录+设备树+剖面图+预警面板+趋势+运维弹窗)
+- [x] Docker Compose 一键部署 + 启动脚本
 
 ## 安全设计
 
@@ -140,4 +139,4 @@ green-power-sentinel/
 
 ## License
 
-MIT
+MIT — 本项目代码可自由使用、修改、分发，需保留原始版权声明。依赖的 PatchTST 模型同为 MIT 协议。
