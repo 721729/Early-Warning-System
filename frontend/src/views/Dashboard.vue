@@ -40,12 +40,12 @@
           <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">化学+AI 实时判定</div></div>
         </div>
 
-        <!-- 通知栏 + admin管理面板 -->
+        <!-- 通知栏: 只显示最新一条 -->
         <div class="notice-bar">
           <span class="notice-icon">📢</span>
           <div class="notice-scroll">
             <span v-if="!notices.length" class="notice-item">系统运行正常，暂无新通知</span>
-            <span v-for="n in notices" :key="n.id" class="notice-item">{{ n.content }} <small>({{ n.created_by }} · {{ n.created_at }})</small></span>
+            <span v-else class="notice-item" style="white-space:normal;word-break:break-all">{{ notices[0].content }} <small>({{ notices[0].created_by }} · {{ notices[0].created_at }})</small></span>
           </div>
           <button v-if="isAdmin" class="btn-notice-manage" @click="showNotices=!showNotices">⚙️ 管理</button>
         </div>
@@ -53,11 +53,11 @@
         <div v-if="showNotices && isAdmin" class="notice-admin card">
           <h3>📢 通知管理</h3>
           <div class="notice-add-row">
-            <input v-model="newNotice" placeholder="输入新通知内容..." class="inp" @keyup.enter="addNotice" />
+            <input v-model="newNotice" placeholder="输入新通知内容..." class="inp" @keydown.enter.prevent />
             <button class="btn btn-primary btn-sm" @click="addNotice">发布</button>
           </div>
           <div v-for="n in notices" :key="'edit-'+n.id" class="notice-edit-row">
-            <input v-model="n._edit" class="inp" @keyup.enter="saveNotice(n)" />
+            <input v-model="n._edit" class="inp" @keydown.enter.prevent />
             <button class="btn btn-sm" @click="saveNotice(n)">保存</button>
             <button class="btn btn-sm btn-del" @click="delNotice(n.id)">删除</button>
           </div>
