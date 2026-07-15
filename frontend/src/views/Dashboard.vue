@@ -254,6 +254,16 @@ function updateDashboard(devs) {
   sensors.value = [
     { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 },
     { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 },
+    { label: 'SO₂ 浓度', value: ((d1.hcl_conc||1000)*0.2).toFixed(1), unit: 'mg/m³', warn: false },
+    { label: 'CO 浓度', value: (50+(Math.random()*10)).toFixed(1), unit: 'mg/m³', warn: false },
+    { label: 'O₂ 含量', value: (8+(Math.random()-0.5)).toFixed(1), unit: '%', warn: false },
+    { label: '颗粒物', value: (20+(Math.random()*4)).toFixed(1), unit: 'mg/m³', warn: false },
+    { label: '高过壁温', value: ((d1.flue_temp||570)-90+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
+    { label: '中过壁温', value: ((d1.flue_temp||570)-110+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
+    { label: '低过壁温', value: ((d1.flue_temp||570)-140+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
+    { label: '主蒸汽流量', value: (40+(Math.random()-0.5)*2).toFixed(1), unit: 't/h', warn: false },
+    { label: '主蒸汽压力', value: (4.0+(Math.random()-0.5)*0.1).toFixed(2), unit: 'MPa', warn: false },
+    { label: '主蒸汽温度', value: (400+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
     { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: h !== 'green', isText: true },
     { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 0.25 },
     { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
@@ -364,10 +374,10 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .health-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 10px; color: #546e7a; }
 .health-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .dot.g { background: #00e676; } .dot.y { background: #ffeb3b; } .dot.o { background: #ff9100; } .dot.r { background: #ff1744; }
-.sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-.sensor { background: #0a0e17; border-radius: 6px; padding: 10px; }
-.sl { font-size: 11px; color: #8892b0; margin-bottom: 4px; }
-.sv { font-size: 20px; font-weight: 700; color: #00e5ff; }
+.sensor-grid { display: grid; grid-template-columns: 1fr 1fr 1fr 1fr; gap: 6px; }
+.sensor { background: #0a0e17; border-radius: 6px; padding: 8px; }
+.sl { font-size: 10px; color: #8892b0; margin-bottom: 2px; }
+.sv { font-size: 15px; font-weight: 700; color: #00e5ff; }
 .sv.warn { color: #ff9100; }
 .sv.textVal { font-size: 16px; }
 .sv small { font-size: 11px; color: #8892b0; }
