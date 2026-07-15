@@ -62,13 +62,15 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 ## 快速开始
 
 ### 环境要求
-- Linux / macOS, Python 3.12+, Docker, Node.js 18+
+- 仅兼容 Linux (Ubuntu 22.04+)，需 Docker + Python 3.12 + Node.js 18+
 
 ### 一键启动（推荐）
 
+`start.sh` 内置环境检测——缺 Docker/Python/Node 会自动提示安装命令并询问是否安装。
+
 ```bash
 git clone https://github.com/721729/Early-Warning-System.git && cd green-power-sentinel
-bash start.sh               # Docker + 后端 + 前端
+bash start.sh               # 检测环境 → 一键启动 Docker + 后端 + 前端
 # 浏览器 → http://localhost:3000  admin / admin123
 ```
 
