@@ -313,8 +313,8 @@ function drawTrend() {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: { data: ['🤖 AI+化学预测值', '📏 实际测量(超声)', '⚠ 危险阈值(3.0mm)'], textStyle: { color: '#8892b0', fontSize: 11 }, top: 5 },
-    grid: { left: 60, right: 30, top: 40, bottom: 40 },
-    xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 10 }, name: '运行天数', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
+    grid: { left: 65, right: 30, top: 40, bottom: 50 },
+    xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 9, interval: Math.max(1, Math.floor(days.length/15)) }, name: '运行天数', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
     yAxis: { type: 'value', min: 2.5, max: 6.5, axisLabel: { color: '#8892b0' }, name: '壁厚 (mm)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
     series: [
       { name: '🤖 AI预测值', type: 'line', data: ai, smooth: true, lineStyle: { color: '#00e5ff', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(0,229,255,0.06)' } },
@@ -359,7 +359,7 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .card { background: #111827; border: 1px solid #1e2d3d; border-radius: 8px; padding: 14px; }
 .card h3 { font-size: 13px; color: #ccd6f6; margin-bottom: 10px; font-weight: 600; }
 .live-tag { color: #00e676; font-size: 10px; margin-left: 6px; animation: pulse2 1s infinite; }
-.chart-l { width: 100%; height: 280px; }
+.chart-l { width: 100%; height: 320px; }
 .health-bars { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
 .hbar { display: flex; align-items: center; gap: 10px; }
 .hname { width: 120px; font-size: 12px; color: #b0bec5; text-align: right; flex-shrink: 0; }
