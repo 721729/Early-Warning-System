@@ -62,19 +62,20 @@ async def overview(
             "ai_anomaly_score":pred["anomaly_score"],
             "ai_reconstruction_error":pred["reconstruction_error"],
             "corrosion_rate":last["r"],
-            "wall_thickness_ai":round(last["w"],2),
-            "rul_days":max((last["w"]-3.0)/max(last["r"],1e-8)*365,1),
+            "wall_thickness_ai":round(_sim.wall, 2),  // 持久仿真实例的累计壁厚
+            "sim_hours":_sim.hours,
+            "rul_days":max((_sim.wall-3.0)/max(last["r"],1e-8)*365,1),
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
         result[0].update({"health":"yellow" if last["r"]>.3 else "green",
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
-            "wall_thickness_ai":last["w"],"rul_days":5000,
+            "wall_thickness_ai":round(_sim.wall,2),"rul_days":5000,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
-    # 设备2-6: 全部给AI异常得分(正常基线0.05~0.12) + 腐蚀速率
+    # 设备2-6
     for i in range(1,6):
         result[i].update({"health":"green","ai_anomaly_score":round(0.05+i*0.015,4),
             "corrosion_rate":round(last["r"]*(0.5+i*0.12),4),
-            "wall_thickness_ai":round(last["w"]+i*0.3,2),
+            "wall_thickness_ai":round(_sim.wall+i*0.3,2),
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     result[0]["trend"] = [{"h":x["h"],"w":x["w"],"hcl":x["hcl"],"r":x["r"]} for x in hist[-200:]]
     return result
