@@ -5,6 +5,12 @@
       <div class="logo">⚡ 绿电哨兵</div>
       <div class="info">
         <span class="plant">新沂项目 #1炉 · 运行中</span>
+        <span class="time-ctrl">
+          时间轴: <button class="btn-time" @click="shiftTime(-500)">⏪ 正常</button>
+          <button class="btn-time" @click="shiftTime(2880)">⏩ 异常段</button>
+          <button class="btn-time" @click="shiftTime(0)">🔄 最新</button>
+          <span style="font-size:10px;color:#546e7a">偏移:{{ timeOffset }}h</span>
+        </span>
         <span class="time">{{ now }}</span>
         <span class="user">{{ username }}</span>
         <span class="dot-live"></span> 仿真Demo
@@ -111,12 +117,15 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { notifyAPI, healthAPI } from '../api/request'
+import request, { notifyAPI, healthAPI } from '../api/request'
 
 const router = useRouter()
 const username = ref('admin')
 const now = ref('')
 const runDays = ref(195)
+const timeOffset = ref(0)
+
+function shiftTime(offset) { timeOffset.value = offset; pollAI() }
 const notices = ref([])
 const showNotices = ref(false)
 const newNotice = ref('')
@@ -161,7 +170,7 @@ let pollTimer = null
 async function pollAI() {
   try {
     const { healthAPI } = await import('../api/request')
-    const r = await healthAPI.overview(1)
+    const r = await request.get('/health/overview', { params: { plant_id: 1, time_offset: timeOffset.value } })
     const devs = r.data
     if (!devs || !devs.length) return
 
@@ -333,4 +342,7 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .btn-sm { padding: 4px 10px; font-size: 11px; }
 .btn-del { border-color: #ff5252; color: #ff5252; }
 .btn-del:hover { background: rgba(255,82,82,.1); }
+.btn-time { padding: 3px 8px; border: 1px solid #37474f; border-radius: 3px; background: transparent; color: #00e5ff; cursor: pointer; font-size: 10px; margin: 0 2px; }
+.btn-time:hover { background: rgba(0,229,255,.1); }
+.time-ctrl { display: flex; align-items: center; gap: 4px; font-size: 11px; color: #8892b0; }
 </style>

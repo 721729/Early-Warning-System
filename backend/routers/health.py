@@ -56,9 +56,10 @@ async def ai_status():
 @router.get("/overview")
 async def get_overview(
     plant_id: int = Query(1),
+    time_offset: int = Query(0, description="时间偏移(小时), 0=最新, 2900=异常段"),
     user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ) -> List[dict]:
-    """设备列表 + AI推理结果(如果模型已加载)"""
+    """设备列表 + AI推理结果(time_offset可快进到异常时段)"""
     result = [dict(d) for d in _DEVICES]
 
     if _MODEL_READY and _predict_fn:
@@ -68,27 +69,35 @@ async def get_overview(
             cols = [c for c in df.columns if c not in
                     ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
             X = df[cols].values[::60].astype(np.float32)
+            total_hours = len(X)
 
-            # 对多个时间窗口做AI推理 —— 模拟不同设备的工况
-            pred_recent = _predict_fn(X[-48:])     # 最新48h
-            pred_normal = _predict_fn(X[100:148])   # 正常工况48h
-            pred_anomaly = _predict_fn(X[2900:2948]) # 异常工况48h
+            # time_offset: 0=最新, 正数=往前偏移
+            if time_offset > 0 and time_offset + 48 < total_hours:
+                idx = min(time_offset, total_hours - 48)
+            else:
+                idx = max(0, total_hours - 48)
 
-            # 设备1: 高温过热器入口段 —— 最新数据(可能异常)
-            if pred_recent["alert_level"] in ("orange", "red"):
+            pred_main = _predict_fn(X[idx:idx+48])
+            pred_normal = _predict_fn(X[100:148])
+
+            # 设备1: 高温过热器入口段 —— time_offset指向的时段
+            if pred_main["alert_level"] in ("orange", "red"):
                 broadcast_notification(
-                    f"⚠ AI预警: 高温过热器入口段触发{pred_recent['alert_level']}级预警，"
-                    f"腐蚀速率{pred_recent['corrosion_rate']}mm/年，"
-                    f"壁厚预测{pred_recent['wall_thickness_pred']}mm",
+                    f"⚠ AI预警: 高温过热器入口段触发{pred_main['alert_level']}级预警，"
+                    f"腐蚀速率{pred_main['corrosion_rate']}mm/年，壁厚预测{pred_main['wall_thickness_pred']}mm",
                     created_by="AI系统")
-            result[0]["health"] = pred_recent["alert_level"]
-            result[0]["corrosion_rate"] = pred_recent["corrosion_rate"]
-            result[0]["rul_days"] = pred_recent["rul_days"]
-            result[0]["ai_anomaly_score"] = pred_recent["anomaly_score"]
-            result[0]["ai_reconstruction_error"] = pred_recent["reconstruction_error"]
-            result[0]["wall_thickness_ai"] = pred_recent["wall_thickness_pred"]
-            result[0]["hcl_conc"] = pred_recent.get("hcl_conc", 0)
-            result[0]["flue_temp"] = pred_recent.get("flue_temp", 0)
+            result[0].update({
+                "health": pred_main["alert_level"],
+                "corrosion_rate": pred_main["corrosion_rate"],
+                "rul_days": pred_main["rul_days"],
+                "ai_anomaly_score": pred_main["anomaly_score"],
+                "ai_reconstruction_error": pred_main["reconstruction_error"],
+                "wall_thickness_ai": pred_main["wall_thickness_pred"],
+                "hcl_conc": pred_main.get("hcl_conc", 0),
+                "flue_temp": pred_main.get("flue_temp", 0),
+                "time_offset": time_offset,
+                "total_hours": total_hours,
+            })
 
             # 设备2: 高温过热器出口段 —— 正常工况(对比参考)
             result[1]["health"] = pred_normal["alert_level"]
