@@ -313,12 +313,12 @@ function drawTrend() {
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
     legend: { data: ['🤖 AI+化学预测值', '📏 实际测量(超声)', '⚠ 危险阈值(3.0mm)'], textStyle: { color: '#8892b0', fontSize: 11 }, top: 5 },
-    grid: { left: 65, right: 30, top: 40, bottom: 50 },
-    xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 9, interval: Math.max(1, Math.floor(days.length/15)) }, name: '运行天数', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
-    yAxis: { type: 'value', min: 2.5, max: 6.5, axisLabel: { color: '#8892b0' }, name: '壁厚 (mm)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
+    grid: { left: 65, right: 30, top: 40, bottom: 55 },
+    xAxis: { type: 'value', min: days[0]||0, max: days[days.length-1]||200, axisLabel: { color: '#8892b0', fontSize: 9, formatter: v => Math.floor(v)+'h' }, name: '运行时间(小时)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
+    yAxis: { type: 'value', min: 2.5, max: 6.5, axisLabel: { color: '#8892b0' }, name: '壁厚(mm)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
     series: [
-      { name: '🤖 AI预测值', type: 'line', data: ai, smooth: true, lineStyle: { color: '#00e5ff', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(0,229,255,0.06)' } },
-      { name: '📏 实际测量(超声)', type: 'line', data: wall, smooth: true, lineStyle: { color: '#ff9100', width: 2 }, symbol: 'none' },
+      { name: '🤖 AI预测值', type: 'line', data: days.map((d,i) => [d, ai[i]]), smooth: true, lineStyle: { color: '#00e5ff', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(0,229,255,0.06)' } },
+      { name: '📏 实际测量', type: 'line', data: days.map((d,i) => [d, wall[i]]), smooth: true, lineStyle: { color: '#ff9100', width: 2 }, symbol: 'none' },
       { name: '⚠ 危险阈值(3.0mm)', type: 'line', markLine: { silent: true, symbol: 'none', lineStyle: { color: '#ff1744', type: 'dashed', width: 2 }, data: [{ yAxis: 3.0, label: { formatter: '3.0mm — 立即停炉', color: '#ff1744', fontSize: 11 } }] }, data: [] }
     ]
   })
