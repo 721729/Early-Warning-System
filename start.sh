@@ -1,8 +1,6 @@
 #!/bin/bash
 # 绿电哨兵 一键启动
 # 用法: bash start.sh
-set -e
-
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
@@ -12,7 +10,7 @@ echo "========================================"
 
 # ---------- 1. Docker ----------
 echo "[1/4] 启动 Docker 数据库..."
-docker compose up -d 2>/dev/null
+docker compose up -d 2>/dev/null || echo "       Docker未启动"
 
 # 等 MySQL 就绪
 echo "       等待 MySQL 初始化..."
@@ -32,7 +30,12 @@ echo "       Docker 就绪"
 
 # ---------- 2. 后端 API ----------
 echo "[2/4] 启动后端 API (端口 8000)..."
-source .venv/bin/activate 2>/dev/null || python3 -m venv .venv && source .venv/bin/activate
+if [ -f .venv/bin/activate ]; then
+  source .venv/bin/activate
+else
+  python3 -m venv .venv && source .venv/bin/activate
+fi
+pip install -q -r backend/requirements.txt 2>/dev/null
 nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > /tmp/gps-backend.log 2>&1 &
 sleep 2
 
