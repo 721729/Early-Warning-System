@@ -36,7 +36,7 @@ def safe_str(s: str, max_len: int = 64) -> str:
 class CreateUserReq(BaseModel):
     username: str
     password: str
-    role: str = "operator"   # admin/plant_manager/maintenance_lead/operator
+    role: str = "operator"
     real_name: str = ""
 
     @field_validator('username')
@@ -56,6 +56,7 @@ class CreateUserReq(BaseModel):
     @field_validator('role')
     @classmethod
     def clean_role(cls, v):
+        # admin 角色只能由现有admin赋予, 此处允许通过, 但create_user接口做二次校验
         allowed = {"admin", "plant_manager", "maintenance_lead", "operator"}
         if v not in allowed:
             raise HTTPException(status_code=422, detail=f"无效角色: {v}")
@@ -199,8 +200,11 @@ async def create_user(
     user: dict = Depends(require_role(["admin"])),
     db: Session = Depends(get_db)
 ):
-    """管理员创建新用户"""
-    # 检查是否已存在
+    """管理员创建新用户 —— admin角色仅admin可赋予"""
+    # admin角色保护
+    if req.role == "admin" and user["role"] != "admin":
+        raise HTTPException(status_code=403, detail="只有管理员才能创建管理员账号")
+
     existing = db.query(User).filter(User.username == req.username).first()
     if existing:
         raise HTTPException(status_code=409, detail="工号已存在")
@@ -238,6 +242,9 @@ async def update_user(
         raise HTTPException(status_code=403, detail="不能修改自己的管理员角色")
 
     if req.role is not None:
+        # admin角色保护: 仅admin可赋予admin角色
+        if req.role == "admin" and user["role"] != "admin":
+            raise HTTPException(status_code=403, detail="只有管理员才能赋予管理员角色")
         target.role = req.role
     if req.real_name is not None:
         target.real_name = safe_str(req.real_name, 32)

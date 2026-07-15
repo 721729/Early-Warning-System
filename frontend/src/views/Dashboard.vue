@@ -33,12 +33,26 @@
           <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">化学+AI 实时判定</div></div>
         </div>
 
-        <!-- 通知栏 -->
+        <!-- 通知栏 + admin管理面板 -->
         <div class="notice-bar">
           <span class="notice-icon">📢</span>
           <div class="notice-scroll">
             <span v-if="!notices.length" class="notice-item">系统运行正常，暂无新通知</span>
             <span v-for="n in notices" :key="n.id" class="notice-item">{{ n.content }} <small>({{ n.created_by }} · {{ n.created_at }})</small></span>
+          </div>
+          <button v-if="isAdmin" class="btn-notice-manage" @click="showNotices=!showNotices">⚙️ 管理</button>
+        </div>
+        <!-- admin通知管理面板 -->
+        <div v-if="showNotices && isAdmin" class="notice-admin card">
+          <h3>📢 通知管理</h3>
+          <div class="notice-add-row">
+            <input v-model="newNotice" placeholder="输入新通知内容..." class="inp" @keyup.enter="addNotice" />
+            <button class="btn btn-primary btn-sm" @click="addNotice">发布</button>
+          </div>
+          <div v-for="n in notices" :key="'edit-'+n.id" class="notice-edit-row">
+            <input v-model="n._edit" class="inp" @keyup.enter="saveNotice(n)" />
+            <button class="btn btn-sm" @click="saveNotice(n)">保存</button>
+            <button class="btn btn-sm btn-del" @click="delNotice(n.id)">删除</button>
           </div>
         </div>
 
@@ -104,6 +118,28 @@ const username = ref('admin')
 const now = ref('')
 const runDays = ref(195)
 const notices = ref([])
+const showNotices = ref(false)
+const newNotice = ref('')
+const isAdmin = ref((JSON.parse(localStorage.getItem('user_info')||'{}')).role === 'admin')
+
+async function loadNotices() {
+  try {
+    const r = await notifyAPI.list()
+    notices.value = r.data.map(n => ({...n, _edit: n.content}))
+  } catch(_) {}
+}
+async function addNotice() {
+  if (!newNotice.value.trim()) return
+  try { await notifyAPI.create(newNotice.value.trim()); newNotice.value=''; loadNotices() } catch(_) {}
+}
+async function saveNotice(n) {
+  try { await notifyAPI.edit(n.id, n._edit); n.content = n._edit; loadNotices() } catch(_) {}
+}
+async function delNotice(nid) {
+  if (!confirm('确认删除此通知？')) return
+  try { await notifyAPI.delete(nid); loadNotices() } catch(_) {}
+}
+
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
 const activeAlerts = ref(1)
 const sensors = ref([])
@@ -120,9 +156,6 @@ const clock = setInterval(() => { now.value = new Date().toLocaleString('zh-CN')
 
 let pollTimer = null
 
-async function loadNotices() {
-  try { const r = await notifyAPI.list(); notices.value = r.data } catch(_) {}
-}
 
 // 每5秒从后端拉取AI推理的真实设备数据
 async function pollAI() {
@@ -290,4 +323,14 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .notice-scroll { overflow: hidden; white-space: nowrap; }
 .notice-item { margin-right: 40px; }
 .notice-item small { color: #546e7a; margin-left: 8px; }
+.btn-notice-manage { padding: 4px 10px; border: 1px solid #37474f; border-radius: 4px; background: transparent; color: #00e5ff; cursor: pointer; font-size: 11px; flex-shrink: 0; }
+.notice-admin { margin-top: 12px; }
+.notice-add-row { display: flex; gap: 8px; margin-bottom: 10px; }
+.notice-edit-row { display: flex; gap: 8px; margin-bottom: 6px; align-items: center; }
+.notice-edit-row .inp { flex: 1; }
+.inp { padding: 6px 10px; border: 1px solid #37474f; border-radius: 4px; background: #0a0e17; color: #ccd6f6; font-size: 12px; outline: none; }
+.inp:focus { border-color: #00e5ff; }
+.btn-sm { padding: 4px 10px; font-size: 11px; }
+.btn-del { border-color: #ff5252; color: #ff5252; }
+.btn-del:hover { background: rgba(255,82,82,.1); }
 </style>

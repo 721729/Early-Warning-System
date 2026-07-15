@@ -67,6 +67,7 @@ export const userAPI = {
 export const notifyAPI = {
   list: () => request.get('/notifications'),
   create: (content) => request.post('/notifications', { content }),
+  edit: (nid, content) => request.put(`/notifications/${nid}`, { content }),
   delete: (nid) => request.delete(`/notifications/${nid}`)
 }
 
