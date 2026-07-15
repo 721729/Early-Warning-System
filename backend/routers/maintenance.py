@@ -13,6 +13,12 @@ router = APIRouter(prefix="/api/v1/maintenance", tags=["运维建议 & 工单"])
 class AutoCreateWO(BaseModel):
     alert_id: int
 
+class EditWO(BaseModel):
+    assignee: str | None = None
+    status: str | None = None
+    action_plan: str | None = None
+    spare_parts: str | None = None
+
 
 @router.get("/workorders")
 async def list_workorders(
@@ -86,6 +92,23 @@ async def get_advice(
         "similar_cases": "2024年8月新沂项目类似HCl偏高工况，持续10天后爆管，损失约280万元" if hcl > 1500 else "暂无相似案例",
         "status": wo.status if wo else "pending",
     }
+
+
+@router.put("/workorders/{wo_id}")
+async def edit_workorder(
+    wo_id: int, body: EditWO,
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    db: Session = Depends(get_db)
+):
+    """编辑工单: 指派人员/修改状态/更新方案"""
+    wo = db.query(WorkOrder).filter(WorkOrder.id == wo_id).first()
+    if not wo: return {"error": "工单不存在"}
+    if body.assignee is not None: wo.assignee = body.assignee
+    if body.status is not None: wo.status = body.status
+    if body.action_plan is not None: wo.action_plan = body.action_plan
+    if body.spare_parts is not None: wo.spare_parts = body.spare_parts
+    db.commit()
+    return {"msg": f"工单#{wo_id}已更新", "status": wo.status}
 
 
 @router.post("/workorder/auto_create")

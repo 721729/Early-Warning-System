@@ -76,10 +76,10 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # 判定: AI MSE为主(实时数据阈值略低于静态CSV)，腐蚀速率为辅助确认
-    mse_high = mse > 0.0013    # 超正常MSE基线
-    mse_danger = mse > 0.0020  # 严重偏离
-    rate_high = rate > 0.25    # 腐蚀加速
+    # 判定: AI MSE为主(实时仿真数据MSE~0.0001-0.0008, 阈值0.00025)
+    mse_high = mse > 0.00025    # 超正常MSE 2.5倍
+    mse_danger = mse > 0.0005   # 严重偏离
+    rate_high = rate > 0.25     # 腐蚀加速
     wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
 
     if wall_danger:                      alert_level = "red"
