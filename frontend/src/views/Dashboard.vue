@@ -216,7 +216,7 @@ async function pollAI() {
 
     // 设备1: 高温过热器入口段 (主监控对象)
     const d1 = devs[0]
-    runDays.value = 195
+    runDays.value = timeOffset.value || d1.trend?.length || 195
     Object.assign(data, {
       wall_thickness: d1.wall_thickness_ai || d1.wall_thickness || 5.90,
       corrosion_rate: d1.corrosion_rate || 0.35,
