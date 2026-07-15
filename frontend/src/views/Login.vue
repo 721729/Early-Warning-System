@@ -4,13 +4,16 @@
       <h1>⚡ 绿电哨兵</h1>
       <p class="subtitle">焚烧炉设备健康度监测平台</p>
       <form @submit.prevent="handleLogin" autocomplete="off">
+        <!-- 隐藏的假输入框，欺骗浏览器密码管理器把自动填充写入这里 -->
+        <input type="text" name="fakeuser" style="display:none" />
+        <input type="password" name="fakepass" style="display:none" />
         <div class="field">
           <label>工号</label>
-          <input v-model="form.username" type="text" placeholder="输入工号" autocomplete="off" />
+          <input v-model="form.username" type="text" placeholder="输入工号" name="uid" autocomplete="new-password" />
         </div>
         <div class="field">
           <label>密码</label>
-          <input v-model="form.password" type="password" placeholder="输入密码" autocomplete="off" />
+          <input v-model="form.password" type="password" placeholder="输入密码" name="pwd" autocomplete="new-password" />
         </div>
         <p v-if="error" class="error">{{ error }}</p>
         <button type="submit" :disabled="loading">
