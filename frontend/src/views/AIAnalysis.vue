@@ -21,6 +21,22 @@
         结论：RevIN 为时序预测设计，会抹除正常/异常的分布差异。本方案采用 RevIN=OFF 配置。
       </p>
     </div>
+    <div class="card" style="margin-top:12px"><h3>❓ 为什么叫"物理约束"？其实是化学动力学</h3>
+      <p style="font-size:13px;color:#b0bec5;line-height:1.8">
+        阿伦尼乌斯方程描述的是<b>化学反应速率</b>——HCl 和 H₂S 在高温下腐蚀管壁，本质是化学过程。<br/>
+        学术上这类方法统称 "Physics-Informed Neural Networks (PINN)"，"Physics" 在此泛指"科学定律约束"而非狭义物理。<br/>
+        本方案的约束项准确说是<b>"化学动力学腐蚀方程约束"</b>——让 AI 的预测不得违背阿伦尼乌斯定律。
+      </p>
+    </div>
+    <div class="card" style="margin-top:12px"><h3>⚠️ 模型C漏报率偏高的原因</h3>
+      <p style="font-size:13px;color:#b0bec5;line-height:1.8">
+        物理约束在损失函数中作为正则项（λ=0.1），作用是<b>压制误报</b>——效果显著（6.0%→2.8%）。<br/>
+        但代价是：部分真实异常的信号特征不够强（HCl升幅小、腐蚀加速不明显），<br/>
+        被物理约束判定为"仍符合腐蚀规律"而未被检出。这是精确率与召回率的标准权衡。<br/>
+        <b>解决方案</b>：Pilot 阶段做 λ 参数扫描（0.01 / 0.05 / 0.1 / 0.5 / 1.0），<br/>
+        在误报率和漏报率之间找到最优平衡点。当前 λ=0.1 为起始实验值。
+      </p>
+    </div>
   </main></div></div>
 </template>
 <script setup>
@@ -29,11 +45,11 @@ import { useRouter } from 'vue-router'
 const router = useRouter()
 const username = ref('admin')
 const ablation = ref([
-  { name: 'F1分数', b: '0.863', c: '0.855', effect: '持平' },
-  { name: '误报率', b: '6.0%', c: '2.8%', effect: '↓53%' },
-  { name: '漏报率', b: '6.2%', c: '17.2%', effect: '↑11pp' },
-  { name: '准确率', b: '93.9%', c: '94.2%', effect: '+0.3pp' },
-  { name: '物理一致性', b: '100%', c: '100%', effect: '持平' },
+  { name: 'F1分数（精确率与召回率的调和平均，0~1越高越好）', b: '0.863', c: '0.855', effect: '持平' },
+  { name: '误报率（正常工况下错误报警的比例）', b: '6.0%', c: '2.8%', effect: '↓53% ── 砍半' },
+  { name: '漏报率（真实异常未被检出的比例）', b: '6.2%', c: '17.2%', effect: '↑11pp ── 代价，λ可调' },
+  { name: '准确率（整体判断正确的比例）', b: '93.9%', c: '94.2%', effect: '+0.3pp' },
+  { name: '化学一致性（预测不违反阿伦尼乌斯腐蚀定律）', b: '100%', c: '100%', effect: '持平' },
 ])
 const modelInfo = ref([
   { k: '模型架构', v: 'GitHub 原版 PatchTST (ICLR 2023)' },

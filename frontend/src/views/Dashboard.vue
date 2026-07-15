@@ -30,7 +30,7 @@
           <div class="kpi cyan"><div class="kv">{{ runDays }}</div><div class="kl">运行天数</div></div>
           <div class="kpi orange pulse"><div class="kv">{{ activeAlerts }}</div><div class="kl">活跃预警</div></div>
           <div class="kpi blue"><div class="kv">{{ (data.wall_thickness || 5.9).toFixed(2) }}mm</div><div class="kl">高温过热器壁厚</div></div>
-          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">AI 实时判定</div></div>
+          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">化学+AI 实时判定</div></div>
         </div>
 
         <!-- 焚烧炉剖面图 + 实时数据 -->
@@ -153,7 +153,7 @@ function drawTrend() {
   c.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    legend: { data: ['🤖 AI预测值', '📏 实际测量(超声)', '⚠ 危险阈值(3.0mm)'], textStyle: { color: '#8892b0', fontSize: 11 }, top: 5 },
+    legend: { data: ['🤖 AI+化学预测值', '📏 实际测量(超声)', '⚠ 危险阈值(3.0mm)'], textStyle: { color: '#8892b0', fontSize: 11 }, top: 5 },
     grid: { left: 60, right: 30, top: 40, bottom: 40 },
     xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 10 }, name: '运行天数', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
     yAxis: { type: 'value', min: 2.5, max: 6.5, axisLabel: { color: '#8892b0' }, name: '壁厚 (mm)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
