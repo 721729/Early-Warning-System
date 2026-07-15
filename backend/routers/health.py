@@ -71,11 +71,14 @@ async def overview(
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall,2),"rul_days":5000,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
-    # 设备2-6
+    # 设备2-6: 壁厚递减梯度——高温区(入口)最薄，远离炉膛的省煤器最厚
+    wall_gradient = [0, 0.25, 0.5, 0.8, 1.1, 1.3]  # 入口→出口→中→低→省→引风机
     for i in range(1,6):
+        w = round(_sim.wall + wall_gradient[i], 2)
+        r = round(last["r"] * (1.0 - i*0.15), 4)
         result[i].update({"health":"green","ai_anomaly_score":round(0.05+i*0.015,4),
-            "corrosion_rate":round(last["r"]*(0.5+i*0.12),4),
-            "wall_thickness_ai":round(_sim.wall+i*0.3,2),
+            "corrosion_rate":r,
+            "wall_thickness_ai":w,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     result[0]["trend"] = [{"h":x["h"],"w":x["w"],"hcl":x["hcl"],"r":x["r"]} for x in hist[-200:]]
     return result
