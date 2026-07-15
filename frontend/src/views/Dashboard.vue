@@ -26,28 +26,27 @@
       <main class="main">
         <!-- KPI 卡片行 -->
         <div class="kpis">
-          <div class="kpi green">
-            <div class="kv">6/6</div><div class="kl">设备在线</div>
-          </div>
-          <div class="kpi orange pulse">
-            <div class="kv">{{ activeAlerts }}</div><div class="kl">活跃预警</div>
-          </div>
-          <div class="kpi cyan">
-            <div class="kv">{{ (data.wall_thickness || 5.9).toFixed(2) }}mm</div><div class="kl">壁厚</div>
-          </div>
-          <div class="kpi blue">
-            <div class="kv">{{ (data.rul_days || 5000) }}天</div><div class="kl">预估剩余寿命</div>
-          </div>
-          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'">
-            <div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">AI 判定</div>
-          </div>
+          <div class="kpi green"><div class="kv">6/6</div><div class="kl">设备在线</div></div>
+          <div class="kpi cyan"><div class="kv">{{ runDays }}</div><div class="kl">运行天数</div></div>
+          <div class="kpi orange pulse"><div class="kv">{{ activeAlerts }}</div><div class="kl">活跃预警</div></div>
+          <div class="kpi blue"><div class="kv">{{ (data.wall_thickness || 5.9).toFixed(2) }}mm</div><div class="kl">高温过热器壁厚</div></div>
+          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">AI 实时判定</div></div>
         </div>
 
         <!-- 焚烧炉剖面图 + 实时数据 -->
         <div class="row2">
           <section class="card boiler">
             <h3>🔥 焚烧炉受热面 · 实时健康度</h3>
-            <div ref="boiler" class="chart-h"></div>
+            <div class="health-bars">
+              <div v-for="d in healthDevs" :key="d.name" class="hbar">
+                <span class="hname">{{ d.name }}</span>
+                <div class="h-track"><div :class="'hfill '+d.health" :style="{width: d.pct+'%'}"></div></div>
+                <span :class="'htag '+d.health">{{ d.label }}</span>
+              </div>
+            </div>
+            <div class="health-legend">
+              <span><i class="dot g"></i>健康(>85%)</span><span><i class="dot y"></i>关注(70-85%)</span><span><i class="dot o"></i>预警(50-70%)</span><span><i class="dot r"></i>危险(<50%)</span>
+            </div>
           </section>
           <section class="card live-data">
             <h3>📡 实时传感器数据 <span class="live-tag">LIVE</span></h3>
@@ -63,8 +62,8 @@
         <!-- 底部双面板 -->
         <div class="row3">
           <section class="card">
-            <h3>📈 壁厚衰减趋势（AI预测 vs 实际）</h3>
-            <div ref="trend" class="chart-m"></div>
+            <h3>📈 壁厚衰减趋势 — AI预测 vs 实际测量</h3>
+            <div ref="trend" class="chart-l"></div>
           </section>
           <section class="card alerts-panel">
             <h3>⚠️ 实时预警</h3>
@@ -93,19 +92,30 @@ import { startSimulation } from '../api/simulator'
 const router = useRouter()
 const username = ref('admin')
 const now = ref('')
+const runDays = ref(195)
 const data = reactive({ wall_thickness: 5.90, rul_days: 5000, ai_alert: 'green' })
 const activeAlerts = ref(1)
 const sensors = ref([])
 const mockAlerts = ref([])
+const healthDevs = ref([
+  { name: '高温过热器(入口)', health: 'green', pct: 92, label: '健康 92%' },
+  { name: '高温过热器(出口)', health: 'yellow', pct: 78, label: '关注 78%' },
+  { name: '中温过热器', health: 'green', pct: 95, label: '健康 95%' },
+  { name: '低温过热器', health: 'green', pct: 97, label: '健康 97%' },
+  { name: '省煤器', health: 'green', pct: 99, label: '健康 99%' },
+])
 
-// 时钟
 const clock = setInterval(() => { now.value = new Date().toLocaleString('zh-CN') }, 1000)
 
-// 仿真数据流
 let stopSim = null
 onMounted(() => {
   stopSim = startSimulation((d) => {
     Object.assign(data, d)
+    runDays.value = 195 + Math.floor(Math.random() * 3)
+    // 更新健康度
+    healthDevs.value[0].health = d.ai_alert === 'orange' ? 'orange' : 'green'
+    healthDevs.value[0].pct = +((d.wall_thickness || 5.9) / 6.0 * 100).toFixed(0)
+    healthDevs.value[0].label = d.ai_alert === 'orange' ? `预警 ${healthDevs.value[0].pct}%` : `健康 ${healthDevs.value[0].pct}%`
     sensors.value = [
       { label: '炉膛温度', value: d.furnace_temp, unit: '°C', warn: d.furnace_temp < 550 },
       { label: 'HCl 浓度', value: d.hcl_conc, unit: 'mg/m³', warn: d.hcl_conc > 1500 },
@@ -123,64 +133,34 @@ onMounted(() => {
       loss: 420000
     }] : []
     activeAlerts.value = mockAlerts.value.length
-    nextTick(() => { drawBoiler(); drawTrend() })
+    nextTick(drawTrend)
   })
-  nextTick(() => { drawBoiler(); drawTrend() })
+  nextTick(drawTrend)
 })
 onUnmounted(() => { clearInterval(clock); if (stopSim) stopSim() })
 
-// 焚烧炉剖面图
-const boiler = ref(null)
-function drawBoiler() {
-  if (!boiler.value) return
-  const c = echarts.init(boiler.value)
-  const color = { green: '#00e676', yellow: '#ffeb3b', orange: '#ff9100', red: '#ff1744' }
-  const devs = [
-    { name: '高过入口', health: data.ai_alert === 'orange' ? 'orange' : 'green' },
-    { name: '高过出口', health: 'yellow' },
-    { name: '中温过热器', health: 'green' },
-    { name: '低温过热器', health: 'green' },
-    { name: '省煤器', health: 'green' },
-  ]
-  c.setOption({
-    backgroundColor: 'transparent',
-    grid: { left: 10, right: 10, top: 10, bottom: 10 },
-    xAxis: { type: 'value', min: 0, max: 12, show: false },
-    yAxis: { type: 'value', min: 0, max: 10, show: false },
-    series: [{
-      type: 'bar', barWidth: '55%',
-      label: { show: true, position: 'inside', fontSize: 11, color: '#000', fontWeight: 'bold' },
-      data: devs.map((d, i) => ({
-        value: [i * 2.2 + 1, 8],
-        name: d.name,
-        itemStyle: { color: color[d.health], borderRadius: 4 }
-      }))
-    }]
-  })
-}
-
-// 壁厚趋势
 const trend = ref(null)
 function drawTrend() {
   if (!trend.value) return
   const c = echarts.init(trend.value)
   const days = [], wall = [], ai = []
   let v = 5.98
-  for (let i = 0; i < 180; i++) {
+  for (let i = 0; i < 195; i++) {
     days.push(i + 1)
     wall.push(+(v - 0.35 / 365 * i).toFixed(2))
-    ai.push(+(v - 0.35 / 365 * i + (Math.random() - 0.5) * 0.05).toFixed(2))
+    ai.push(+(v - 0.35 / 365 * i + (Math.random() - 0.5) * 0.06).toFixed(2))
   }
   c.setOption({
     backgroundColor: 'transparent',
     tooltip: { trigger: 'axis' },
-    legend: { data: ['AI预测值', '实际测量', '危险阈值'], textStyle: { color: '#8892b0' }, top: 5 },
-    xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 10 }, name: '运行天数' },
-    yAxis: { type: 'value', axisLabel: { color: '#8892b0' }, name: '壁厚(mm)' },
+    legend: { data: ['🤖 AI预测值', '📏 实际测量(超声)', '⚠ 危险阈值(3.0mm)'], textStyle: { color: '#8892b0', fontSize: 11 }, top: 5 },
+    grid: { left: 60, right: 30, top: 40, bottom: 40 },
+    xAxis: { type: 'category', data: days, axisLabel: { color: '#8892b0', fontSize: 10 }, name: '运行天数', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
+    yAxis: { type: 'value', min: 2.5, max: 6.5, axisLabel: { color: '#8892b0' }, name: '壁厚 (mm)', nameTextStyle: { color: '#8892b0' }, splitLine: { show: false } },
     series: [
-      { name: 'AI预测值', type: 'line', data: ai, smooth: true, lineStyle: { color: '#00bcd4', width: 2 }, symbol: 'none' },
-      { name: '实际测量', type: 'line', data: wall, smooth: true, lineStyle: { color: '#ff9100', width: 2 }, symbol: 'none' },
-      { name: '危险阈值', type: 'line', markLine: { silent: true, lineStyle: { color: '#ff1744', type: 'dotted' }, data: [{ yAxis: 3.0, label: { formatter: '3.0mm', color: '#ff1744' } }] }, symbol: 'none', data: [] }
+      { name: '🤖 AI预测值', type: 'line', data: ai, smooth: true, lineStyle: { color: '#00e5ff', width: 2.5 }, symbol: 'none', areaStyle: { color: 'rgba(0,229,255,0.06)' } },
+      { name: '📏 实际测量(超声)', type: 'line', data: wall, smooth: true, lineStyle: { color: '#ff9100', width: 2 }, symbol: 'none' },
+      { name: '⚠ 危险阈值(3.0mm)', type: 'line', markLine: { silent: true, symbol: 'none', lineStyle: { color: '#ff1744', type: 'dashed', width: 2 }, data: [{ yAxis: 3.0, label: { formatter: '3.0mm — 立即停炉', color: '#ff1744', fontSize: 11 } }] }, data: [] }
     ]
   })
 }
@@ -220,8 +200,22 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .card { background: #111827; border: 1px solid #1e2d3d; border-radius: 8px; padding: 14px; }
 .card h3 { font-size: 13px; color: #ccd6f6; margin-bottom: 10px; font-weight: 600; }
 .live-tag { color: #00e676; font-size: 10px; margin-left: 6px; animation: pulse2 1s infinite; }
-.chart-h { width: 100%; height: 220px; }
-.chart-m { width: 100%; height: 240px; }
+.chart-l { width: 100%; height: 280px; }
+.health-bars { display: flex; flex-direction: column; gap: 10px; padding: 8px 0; }
+.hbar { display: flex; align-items: center; gap: 10px; }
+.hname { width: 120px; font-size: 12px; color: #b0bec5; text-align: right; flex-shrink: 0; }
+.h-track { flex: 1; height: 18px; background: #1a2332; border-radius: 9px; overflow: hidden; }
+.hfill { height: 100%; border-radius: 9px; transition: width .5s; }
+.hfill.green { background: linear-gradient(90deg, #00c853, #00e676); }
+.hfill.yellow { background: linear-gradient(90deg, #f9a825, #ffeb3b); }
+.hfill.orange { background: linear-gradient(90deg, #e65100, #ff9100); animation: hPulse 1.5s infinite; }
+.hfill.red { background: linear-gradient(90deg, #b71c1c, #ff1744); animation: hPulse .8s infinite; }
+@keyframes hPulse { 50% { opacity: .7; } }
+.htag { width: 80px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
+.htag.green { color: #00e676; } .htag.yellow { color: #ffeb3b; } .htag.orange { color: #ff9100; } .htag.red { color: #ff1744; }
+.health-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 10px; color: #546e7a; }
+.health-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
+.dot.g { background: #00e676; } .dot.y { background: #ffeb3b; } .dot.o { background: #ff9100; } .dot.r { background: #ff1744; }
 .sensor-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
 .sensor { background: #0a0e17; border-radius: 6px; padding: 10px; }
 .sl { font-size: 11px; color: #8892b0; margin-bottom: 4px; }
