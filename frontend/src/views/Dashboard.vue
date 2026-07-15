@@ -23,7 +23,7 @@
         <router-link to="/" class="nav-item active">🏠 总览</router-link>
         <router-link to="/alerts" class="nav-item">⚠️ 预警记录</router-link>
         <router-link to="/workorders" class="nav-item">📋 工单管理</router-link>
-        <router-link to="/ai" class="nav-item">🧠 AI分析</router-link>
+        <router-link to="/inventory" class="nav-item">📦 备件库存</router-link><router-link to="/ai" class="nav-item">🧠 AI分析</router-link>
         <router-link to="/audit" class="nav-item">📋 审计日志</router-link>
         <router-link to="/users" class="nav-item">👥 用户管理</router-link>
         <a href="#" class="nav-item" @click.prevent="logout">🚪 退出</a>

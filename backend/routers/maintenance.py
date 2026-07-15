@@ -7,6 +7,7 @@ from typing import List
 from backend.middleware.auth import require_role
 from backend.models.database import get_db
 from backend.models.tables import WorkOrder, AlertLog
+from backend.routers.inventory import check_stock
 
 router = APIRouter(prefix="/api/v1/maintenance", tags=["运维建议 & 工单"])
 
@@ -81,17 +82,20 @@ async def get_advice(
     else:
         hcl_advice = f"HCl浓度{hcl:.0f}mg/m³在正常范围"
 
+    # 库存检查
+    stock = check_stock("T22管材", 150) if rate > 0.30 else {"status":"无需","detail":""}
+    schedule = "建议7天内安排停炉检修，可合并本月计划检修窗口，减少一次额外停炉" if rate > 0.30 else ""
+
     return {
-        "alert_id": alert_id,
-        "work_order_id": wo.id if wo else None,
-        "alert_level": alert.alert_level,
-        "urgency": urgency,
-        "phenomenon": f"AI检测: MSE={mse:.4f}(阈值0.0015)，腐蚀速率{rate:.2f}mm/年，"
-                      f"HCl={hcl:.0f}mg/m³，壁厚预测{wall:.2f}mm",
+        "alert_id": alert_id, "work_order_id": wo.id if wo else None,
+        "alert_level": alert.alert_level, "urgency": urgency,
+        "phenomenon": f"AI检测: MSE={mse:.4f}，腐蚀速率{rate:.2f}mm/年，HCl={hcl:.0f}mg/m³，壁厚预测{wall:.2f}mm",
         "root_cause": f"{hcl_advice}。AI异常得分上升表明多参数关联模式偏离正常工况。",
         "action_plan": action,
         "spare_parts": "T22管材 φ51×5mm ×200m, 弯头×4, 焊接材料1套" if rate > 0.30 else "无需备件",
-        "similar_cases": "2024年8月新沂项目类似HCl偏高工况，持续10天后爆管，损失约280万元" if hcl > 1500 else "暂无相似案例",
+        "stock_check": stock["detail"],
+        "scheduling": schedule,
+        "similar_cases": "2024年8月新沂项目类似HCl偏高工况，停炉11天，损失约280万元" if hcl > 1500 else "暂无相似案例",
         "status": wo.status if wo else "pending",
     }
 

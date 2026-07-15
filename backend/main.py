@@ -8,7 +8,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 import logging
 
-from backend.routers import auth, health, alert, predict, maintenance, users
+from backend.routers import auth, health, alert, predict, maintenance, users, inventory
 from backend.config import settings
 
 logging.basicConfig(level=logging.INFO,
@@ -52,6 +52,7 @@ app.include_router(alert.router)
 app.include_router(predict.router)
 app.include_router(maintenance.router)
 app.include_router(users.router)
+app.include_router(inventory.router)
 
 
 @app.get("/")
