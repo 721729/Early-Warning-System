@@ -18,7 +18,7 @@ from ml.config import MATERIAL_PARAMS, SIMULATION
 _DEVICE = torch.device("cpu")
 _MODEL = None
 _NORM = None
-_THRESHOLD = 0.007
+_THRESHOLD = 0.002  # 训练集MSE 95分位，高于此值=异常
 
 
 def make_config(seq_len=48):

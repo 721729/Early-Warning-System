@@ -21,7 +21,20 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 | 数据库 | InfluxDB 2.7 / MySQL 8.0 / Redis 7 | Docker Compose 一键部署 |
 | Vue 前端 | Vue 3 + Vite + ECharts + Axios | 登录 → JWT → 设备树 → 健康度剖面图 → 预警面板 |
 
-**全部组件开源、兼容 Linux。**
+## 功能特性
+
+| 功能 | 说明 |
+|------|------|
+| 🔐 登录鉴权 | JWT + RBAC 四级权限（管理员/厂长/检修班长/值长），输入校验 + XSS 防护 |
+| 🏠 实时总览 | 6 设备健康度进度条 + AI 异常得分 + 传感器数据 + 壁厚趋势图 |
+| ⚠️ 预警管理 | 三级预警（黄/橙/红），AI 置信度标注，预估损失金额 |
+| 🧠 AI 分析 | 消融实验结果表、RevIN 开关对比、15 参数传感器说明、阿伦尼乌斯参数校准方案 |
+| 📋 审计日志 | 全操作留痕（登录/确认预警/创建工单），INSERT-only 不可删改 |
+| 👥 用户管理 | 管理员专属：新建用户、修改密码、角色变更、启用/禁用（含越权防护） |
+| 📢 通知模块 | 管理员发布通知，所有用户可见，XSS 输入过滤 |
+| 🤖 AI 推理 | GitHub 原版 PatchTST（47 万参数）加载权重，实时推理腐蚀速率/异常得分/预警等级/RUL |
+
+**全部组件开源、兼容 Linux。前后端已全面对接——前端每 5 秒从后端拉取 AI 推理结果，6 个设备健康度数据全部来自 PatchTST 模型。**
 
 ## 模型来源 & 关键实验
 
@@ -73,15 +86,20 @@ python train.py             # → model_b_pure.pth, model_c_fusion.pth (各 1.8M
 python ablation.py          # → ablation_metrics.json（完整消融指标）
 ```
 
-### 4. 启动后端 API（需要 Docker）
+### 4. 一键启动（推荐）
 
 ```bash
-docker-compose up -d        # 起 InfluxDB + MySQL + Redis
-cd ../backend
-uv pip install -r requirements.txt
-uvicorn backend.main:app --host 0.0.0.0 --port 8000 --reload
-# 浏览器打开 http://localhost:8000/docs → Swagger UI
-# POST /api/v1/auth/login {"username":"admin","password":"admin123"} 获取 token
+bash start.sh               # Docker + 后端 + 前端全部启动
+# 浏览器打开 http://localhost:3000  → admin / admin123
+```
+
+### 5. 或手动启动
+
+```bash
+docker compose up -d                              # 1. 数据库
+cd backend && uv pip install -r requirements.txt  # 2. 后端依赖
+uvicorn backend.main:app --host 0.0.0.0 --port 8000 &  # 3. 启动后端
+cd ../frontend && npm install && npm run dev &     # 4. 启动前端
 ```
 
 ## 目录结构
@@ -95,29 +113,36 @@ green-power-sentinel/
 │   ├── inference.py          # 推理服务 (腐蚀速率 + 异常得分 + 预警等级 + RUL)
 │   └── config.py             # 阿伦尼乌斯参数 + PatchTST超参数
 ├── backend/                  # API 层
-│   ├── main.py               # FastAPI 入口
-│   ├── models/               # SQLAlchemy ORM (6表: user/equipment/alert_log/work_order/kg_relation/audit_log)
-│   ├── routers/              # auth / health / alert / predict / maintenance
-│   ├── middleware/auth.py    # JWT解码 + Redis黑名单 + RBAC (4级权限)
-│   └── services/inference_service.py  # 加载原版PatchTST权重, 提供真实推理
-├── frontend/                  # Vue 3 前端
-│   ├── src/views/Login.vue    # 登录页 (输入校验 + 防重复提交)
-│   ├── src/views/Dashboard.vue # 仪表盘 (设备树+剖面图+预警+趋势+运维弹窗)
+│   ├── main.py               # FastAPI 入口 + CORS白名单 + 安全响应头
+│   ├── models/               # SQLAlchemy ORM (6表)
+│   ├── routers/              # auth/health/alert/predict/maintenance/users(含通知&用户管理)
+│   ├── middleware/auth.py    # JWT解码 + Redis黑名单 + RBAC (4级权限+越权防护)
+│   └── services/inference_service.py  # 加载PatchTST权重, 真实AI推理(阈值0.002)
+├── frontend/                  # Vue 3 前端 (工业暗色UI)
+│   ├── src/views/Login.vue    # 登录页 (XSS防护 + 自动填充禁用)
+│   ├── src/views/Dashboard.vue # 总览 (6设备健康度+AI异常得分+趋势+预警, 每5秒拉取AI)
+│   ├── src/views/AIAnalysis.vue # AI分析 (消融实验/RevIN对比/参数说明/校准方案)
+│   ├── src/views/AlertHistory.vue # 预警记录
+│   ├── src/views/AuditLog.vue # 审计日志 (只读)
+│   ├── src/views/UserManagement.vue # 用户管理 (admin专属, 新建/改密/角色/禁用)
 │   ├── src/router/index.js    # 路由守卫 (未登录→跳登录)
-│   └── src/api/request.js     # Axios (自动带JWT, 401跳登录)
+│   └── src/api/request.js     # Axios (自动带JWT, 401跳登录, users/notify API)
 ├── docker-compose.yml         # InfluxDB + MySQL + Redis 一键部署
-├── deploy/init.sql            # 建表 + 默认管理员
-├── start.sh                   # 一键启动
+├── deploy/init.sql            # 建表 + 默认管理员 (admin/admin123)
+├── start.sh                   # 一键启动 (首次建表后续跳过)
 └── stop.sh                    # 一键停止
 ```
 
 ## 一个月竞赛成果
 
 - [x] 仿真数据生成 (6个月分钟级, 16字段, 含注入异常)
-- [x] PatchTST 消融实验 (纯机理/纯 AI/融合, F1=0.86, FPR 砍半)
-- [x] FastAPI 后端 (5模块16端点, JWT + RBAC)
-- [x] Vue 3 前端 (登录+设备树+剖面图+预警面板+趋势+运维弹窗)
-- [x] Docker Compose 一键部署 + 启动脚本
+- [x] PatchTST 消融实验 (纯 AI/融合, F1=0.86, 物理约束降误报率 53%)
+- [x] AI 阈值校准 (训练集 MSE 分布 → 95 分位阈值 0.002)
+- [x] FastAPI 后端 (7 模块 20+ 端点, JWT + RBAC + XSS 防护 + 越权防护)
+- [x] Vue 3 前端 (5 页面工业暗色 UI, 每 5 秒拉取 AI 推理, 6 设备健康度实时更新)
+- [x] 前后端全面对接 (PatchTST 模型加载 → 推理 → API → 前端渲染)
+- [x] 用户管理 + 通知模块 + 审计日志
+- [x] Docker Compose 一键部署 + start.sh/stop.sh 脚本
 
 ## 安全设计
 
