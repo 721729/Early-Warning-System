@@ -64,19 +64,24 @@ async def overview(
             "corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall, 2),  # 持久仿真实例的累计壁厚
             "sim_hours":_sim.hours,
-            "rul_days":max((_sim.wall-3.0)/max(last["r"],1e-8)*365,1),
+            "rul_days":max((_sim.wall-3.0)/max(last["r"] or 0.01,1e-8)*365,1),
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
         result[0].update({"health":"yellow" if last["r"]>.3 else "green",
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall,2),"rul_days":5000,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
-    # 设备2-6: 壁厚递减梯度——高温区(入口)最薄，远离炉膛的省煤器最厚
-    wall_gradient = [0, 0.25, 0.5, 0.8, 1.1, 1.3]  # 入口→出口→中→低→省→引风机
+    # 设备2-6: 受热面壁厚梯度——入口最薄，越远离炉膛越厚
+    wall_gradient = [0, 0.15, 0.35, 0.6, 0.9, 1.2]
+    health_levels = ["yellow","green","green","green","green","green"]
+    # 异常段: 入口报警时，出口和中温也显示关注
+    if last["r"] > 2.0:
+        health_levels = ["yellow","yellow","yellow","green","green","green"]
     for i in range(1,6):
         w = round(_sim.wall + wall_gradient[i], 2)
         r = round(last["r"] * (1.0 - i*0.15), 4)
-        result[i].update({"health":"green","ai_anomaly_score":round(0.05+i*0.015,4),
+        result[i].update({"health":health_levels[i],
+            "ai_anomaly_score":round(0.05+i*0.02,4),
             "corrosion_rate":r,
             "wall_thickness_ai":w,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})

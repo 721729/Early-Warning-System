@@ -15,13 +15,21 @@ class Simulation:
         self.Ea = _params.Ea; self.R = _params.R; self.m = _params.m; self.n = _params.n
 
     def _hcl(self, h):
-        if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 1900)
-        elif self.a_start <= h < self.a_start + 336: return np.random.uniform(1550, 1800)
+        if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 2000)
+        elif self.a_start <= h < self.a_start + 336: return np.random.uniform(1500, 1900)
         return 1000 + np.random.randn() * 80
 
     def _temp(self, h):
-        b = 555 if (self.a_spike <= h < self.a_spike + 2) else 565 if (self.a_start <= h < self.a_start + 336) else 575
-        return b + np.random.randn() * 8
+        # 异常段燃烧不稳，炉温大幅波动
+        if self.a_spike <= h < self.a_spike + 2: b = 545; s = 15
+        elif self.a_start <= h < self.a_start + 336: b = 560; s = 12
+        else: b = 575; s = 8
+        return b + np.random.randn() * s
+
+    def _A_for_hour(self, h):
+        """腐蚀加速: 正常期A=200, 异常期A=1500 — 加速7.5倍"""
+        if self.a_start <= h: return 1500.0
+        return 200.0
 
     def advance_to(self, target):
         if target <= self.hours: return
@@ -31,7 +39,9 @@ class Simulation:
         hcl_arr = np.array([self._hcl(h) for h in hours_arr])
         temp_arr = np.array([self._temp(h) for h in hours_arr])
         tk_arr = temp_arr + 273.15
-        rate_arr = self.A_demo * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
+        # 每个小时的A参数可能不同（正常/异常加速）
+        A_arr = np.array([self._A_for_hour(h) for h in hours_arr])
+        rate_arr = A_arr * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
         wall_arr = self.wall - np.cumsum(rate_arr / (365*24))
         for i in range(n):
             self.history.append({"h": int(hours_arr[i]), "w": round(float(wall_arr[i]),3),
