@@ -82,14 +82,15 @@ async def get_overview(
             pred_main = _predict_fn(X[idx:idx+48])
             pred_normal = _predict_fn(X[100:148])
 
-            # 设备1: 高温过热器入口段 —— time_offset指向的时段
-            if pred_main["alert_level"] in ("yellow", "orange", "red"):
+            # Demo模式: 每次请求都生成一条预警记录（time_offset!=0时模拟检测）
+            if time_offset != 0:
                 try:
                     db = SessionLocal()
                     create_alert_internal(db, AutoAlertReq(
                         device_id=1, device_name="高温过热器入口段",
                         alert_level=pred_main["alert_level"],
-                        reason=f"AI检测异常: 重建MSE={pred_main['reconstruction_error']:.4f}(阈值0.0015)，"
+                        reason=f"{'⚠' if pred_main['alert_level']!='green' else '✓'} "
+                               f"AI推理: MSE={pred_main['reconstruction_error']:.4f}(阈值0.0015)，"
                                f"腐蚀速率{pred_main['corrosion_rate']}mm/年，"
                                f"HCl={pred_main.get('hcl_conc',0):.0f}mg/m³，"
                                f"壁厚预测{pred_main['wall_thickness_pred']}mm",
@@ -97,7 +98,7 @@ async def get_overview(
                         wall_thickness=pred_main['wall_thickness_pred'],
                         rul_days=pred_main['rul_days'],
                         ai_score=pred_main['anomaly_score'],
-                        predicted_loss=420000
+                        predicted_loss=420000 if pred_main['alert_level']!='green' else 0
                     ))
                     db.close()
                 except Exception as e:

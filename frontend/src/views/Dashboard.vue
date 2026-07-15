@@ -143,10 +143,38 @@ const timeOffset = ref(0)
 async function shiftTime(offset) {
   timeOffset.value = offset
   await pollAI()
-  // 同时刷新预警历史
-  try { const r = await alertAPI.active(); mockAlerts.value = r.data } catch(_) {}
+  // 总是从API拉取真实预警（不受pollAI覆盖）
+  try {
+    const active = await alertAPI.active()
+    if (active.data.length) {
+      mockAlerts.value = active.data.map(a => ({
+        id: a.id, level: a.alert_level,
+        title: a.alert_level === 'red' ? '壁厚危险预警' : '过热器腐蚀预警',
+        time: (a.alert_time||'').slice(11,19),
+        desc: (a.reason||'').slice(0,120),
+        loss: a.predicted_loss || 420000,
+        rul_days: '?',
+        confidence: 85
+      }))
+    }
+  } catch(_) {}
+  // 如果active为空，拿最近一条history
   if (!mockAlerts.value.length) {
-    try { const r = await alertAPI.history(); if (r.data.length) mockAlerts.value = [r.data[0]] } catch(_) {}
+    try {
+      const hist = await alertAPI.history()
+      if (hist.data.length) {
+        const a = hist.data[0]
+        mockAlerts.value = [{
+          id: a.id, level: a.alert_level,
+          title: '历史预警',
+          time: (a.alert_time||'').slice(11,19),
+          desc: (a.reason||'').slice(0,120),
+          loss: a.predicted_loss || 0,
+          rul_days: '?',
+          confidence: 80
+        }]
+      }
+    } catch(_) {}
   }
   activeAlerts.value = mockAlerts.value.length
 }
@@ -265,7 +293,7 @@ async function pollAI() {
 onMounted(() => {
   loadNotices()
   pollAI()
-  pollTimer = setInterval(pollAI, 5000)  // 每5秒拉一次AI数据
+  pollTimer = setInterval(() => { if (timeOffset.value === 0) pollAI() }, 5000)  // 自动模式每5秒拉AI
   nextTick(drawTrend)
 })
 onUnmounted(() => { clearInterval(clock); if (pollTimer) clearInterval(pollTimer) })
