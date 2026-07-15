@@ -6,6 +6,7 @@ import pandas as pd
 from pathlib import Path
 
 from backend.middleware.auth import require_role
+from backend.routers.users import broadcast_notification
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
@@ -74,6 +75,12 @@ async def get_overview(
             pred_anomaly = _predict_fn(X[2900:2948]) # 异常工况48h
 
             # 设备1: 高温过热器入口段 —— 最新数据(可能异常)
+            if pred_recent["alert_level"] in ("orange", "red"):
+                broadcast_notification(
+                    f"⚠ AI预警: 高温过热器入口段触发{pred_recent['alert_level']}级预警，"
+                    f"腐蚀速率{pred_recent['corrosion_rate']}mm/年，"
+                    f"壁厚预测{pred_recent['wall_thickness_pred']}mm",
+                    created_by="AI系统")
             result[0]["health"] = pred_recent["alert_level"]
             result[0]["corrosion_rate"] = pred_recent["corrosion_rate"]
             result[0]["rul_days"] = pred_recent["rul_days"]

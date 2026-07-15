@@ -106,7 +106,23 @@ class NotificationReq(BaseModel):
 # 通知模块（内存存储, 重启清空 Demo）
 # ============================================================
 import datetime
-_notifications: list[dict] = [
+_notifications: list[dict] = []
+
+
+def broadcast_notification(content: str, created_by: str = "system"):
+    """供其他模块调用——将预警/工单事件推送为通知"""
+    n = {
+        "id": len(_notifications) + 1,
+        "content": html.escape(content.strip()),
+        "created_by": created_by,
+        "created_at": datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+    _notifications.append(n)
+    return n
+
+
+# 默认系统通知
+_notifications = [
     {"id": 1, "content": "系统上线通知：绿电哨兵 v1.0 已部署，设备健康度监测平台正常运行。",
      "created_by": "admin", "created_at": "2026-07-15 09:00:00"},
 ]
@@ -134,6 +150,21 @@ async def create_notification(
     }
     _notifications.append(n)
     return n
+
+
+@router.put("/notifications/{nid}")
+async def edit_notification(
+    nid: int,
+    req: NotificationReq,
+    user: dict = Depends(require_role(["admin"]))
+):
+    """管理员编辑通知内容"""
+    for n in _notifications:
+        if n["id"] == nid:
+            n["content"] = req.content
+            n["created_at"] = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S") + " (已编辑)"
+            return n
+    raise HTTPException(status_code=404, detail="通知不存在")
 
 
 @router.delete("/notifications/{nid}")
