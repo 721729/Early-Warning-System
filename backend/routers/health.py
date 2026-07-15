@@ -62,23 +62,39 @@ async def get_overview(
 
     if _MODEL_READY and _predict_fn:
         try:
-            # 取仿真数据最后48小时喂给AI
             csv_path = Path(__file__).parent.parent.parent / "ml" / "simulation_data.csv"
             df = pd.read_csv(csv_path)
             cols = [c for c in df.columns if c not in
                     ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
-            X = df[cols].values[::60].astype(np.float32)  # 小时级
-            window = X[-48:]  # 最后48小时
-            pred = _predict_fn(window)
+            X = df[cols].values[::60].astype(np.float32)
 
-            # 用AI结果更新第一个设备
-            result[0]["health"] = pred["alert_level"]
-            result[0]["corrosion_rate"] = pred["corrosion_rate"]
-            result[0]["rul_days"] = pred["rul_days"]
-            result[0]["ai_anomaly_score"] = pred["anomaly_score"]
-            result[0]["ai_reconstruction_error"] = pred["reconstruction_error"]
-            result[0]["hcl_conc"] = pred.get("hcl_conc", 0)
-            result[0]["flue_temp"] = pred.get("flue_temp", 0)
+            # 对多个时间窗口做AI推理 —— 模拟不同设备的工况
+            pred_recent = _predict_fn(X[-48:])     # 最新48h
+            pred_normal = _predict_fn(X[100:148])   # 正常工况48h
+            pred_anomaly = _predict_fn(X[2900:2948]) # 异常工况48h
+
+            # 设备1: 高温过热器入口段 —— 最新数据(可能异常)
+            result[0]["health"] = pred_recent["alert_level"]
+            result[0]["corrosion_rate"] = pred_recent["corrosion_rate"]
+            result[0]["rul_days"] = pred_recent["rul_days"]
+            result[0]["ai_anomaly_score"] = pred_recent["anomaly_score"]
+            result[0]["ai_reconstruction_error"] = pred_recent["reconstruction_error"]
+            result[0]["wall_thickness_ai"] = pred_recent["wall_thickness_pred"]
+            result[0]["hcl_conc"] = pred_recent.get("hcl_conc", 0)
+            result[0]["flue_temp"] = pred_recent.get("flue_temp", 0)
+
+            # 设备2: 高温过热器出口段 —— 正常工况(对比参考)
+            result[1]["health"] = pred_normal["alert_level"]
+            result[1]["corrosion_rate"] = pred_normal["corrosion_rate"]
+            result[1]["rul_days"] = pred_normal["rul_days"]
+            result[1]["ai_anomaly_score"] = pred_normal["anomaly_score"]
+            result[1]["wall_thickness_ai"] = pred_normal["wall_thickness_pred"]
+            result[1]["hcl_conc"] = pred_normal.get("hcl_conc", 0)
+
+            # 设备3〜6也用正常工况基线
+            for i in range(2, 6):
+                result[i]["ai_anomaly_score"] = pred_normal["anomaly_score"]
+                result[i]["corrosion_rate"] = pred_normal["corrosion_rate"] * (0.3 + i * 0.1)
         except Exception as e:
             print(f"[AI] 推理失败: {e}")
 
