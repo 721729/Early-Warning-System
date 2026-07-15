@@ -23,14 +23,10 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# 首次启动时建表 + 插管理员，后续跳过
-TABLE_EXISTS=$(docker exec gps-mysql mysql -u root -proot123 green_power_sentinel -sN -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='user';" 2>/dev/null)
-if [ "$TABLE_EXISTS" = "0" ] || [ -z "$TABLE_EXISTS" ]; then
-  echo "       首次启动, 初始化数据库..."
-  docker exec gps-mysql mysql -u root -proot123 green_power_sentinel < deploy/init.sql 2>/dev/null
-else
-  echo "       数据库已存在, 跳过初始化"
-fi
+# 每次启动都运行init.sql (CREATE TABLE IF NOT EXISTS 安全幂等)
+echo "       初始化数据库(幂等安全)..."
+docker exec -i gps-mysql mysql -u root -proot123 green_power_sentinel < deploy/init.sql 2>/dev/null
+echo "       数据库就绪"
 
 echo "       Docker 就绪"
 
