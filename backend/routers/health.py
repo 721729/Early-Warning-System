@@ -55,11 +55,12 @@ async def overview(
                     predicted_loss=420000 if pred['alert_level']!='green' else 0))
                 db.close()
             except Exception as e: print(f"[Alert] {e}")
-        result[0].update({"health":pred["alert_level"],"corrosion_rate":pred["corrosion_rate"],
-            "rul_days":pred["rul_days"],"ai_anomaly_score":pred["anomaly_score"],
+        result[0].update({"health":pred["alert_level"],"corrosion_rate":last["r"],
+            "rul_days":max((last["w"]-3.0)/max(last["r"],1e-8)*365,1),
+            "ai_anomaly_score":pred["anomaly_score"],
             "ai_reconstruction_error":pred["reconstruction_error"],
-            "wall_thickness_ai":pred["wall_thickness_pred"],
-            "hcl_conc":pred.get("hcl_conc",0),"flue_temp":pred.get("flue_temp",0)})
+            "wall_thickness_ai":round(last["w"],2),
+            "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
         result[0].update({"health":"yellow" if last["r"]>.3 else "green","corrosion_rate":last["r"],
             "rul_days":max((last["w"]-3)/max(last["r"],1e-8)*365,1),

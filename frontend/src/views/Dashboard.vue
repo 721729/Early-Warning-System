@@ -234,7 +234,7 @@ async function pollAI() {
     healthDevs.value = devs.slice(0, 6).map((d, i) => ({
       name: d.name,
       health: colorMap[d.health] || 'green',
-      pct: +((d.wall_thickness_ai || d.wall_thickness || 5.9) / (d.original || 6.0) * 100).toFixed(1),
+      pct: +((d.ai_anomaly_score || 0) * 100).toFixed(1),
       label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
       rate: d.corrosion_rate?.toFixed(2) || '0',
     }))
