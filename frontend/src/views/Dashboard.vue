@@ -37,7 +37,8 @@
           <div class="kpi cyan"><div class="kv">{{ runDays }}</div><div class="kl">运行天数</div></div>
           <div class="kpi orange pulse"><div class="kv">{{ activeAlerts }}</div><div class="kl">活跃预警</div></div>
           <div class="kpi blue"><div class="kv">{{ (data.wall_thickness || 5.9).toFixed(2) }}mm</div><div class="kl">高温过热器壁厚</div></div>
-          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠ 异常' : '✓ 正常' }}</div><div class="kl">化学+AI 实时判定</div></div>
+          <div class="kpi cyan"><div class="kv" style="font-size:14px">🤖 在线</div><div class="kl">PatchTST AI引擎</div></div>
+          <div class="kpi" :class="data.ai_alert === 'orange' ? 'red' : data.ai_alert === 'yellow' ? 'orange' : 'green'"><div class="kv">{{ data.ai_alert === 'orange' ? '⚠' : data.ai_alert === 'yellow' ? '⚡' : '✓' }}</div><div class="kl">AI实时判定</div></div>
         </div>
 
         <!-- 通知栏: 只显示最新一条 -->
@@ -244,7 +245,7 @@ function updateDashboard(devs) {
   const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
   healthDevs.value = devs.slice(0, 6).map(d => ({
     name: d.name, health: colorMap[d.health] || 'green',
-    pct: +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0),
+    pct: Math.min(100, Math.max(0, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0))),
     label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
     rate: (d.corrosion_rate || 0.15).toFixed(2),
   }))
