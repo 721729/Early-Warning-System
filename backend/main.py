@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import logging
 
 from backend.routers import auth, health, alert, predict, maintenance
+from backend.config import settings
 
 logging.basicConfig(level=logging.INFO,
                     format="%(asctime)s [%(levelname)s] %(message)s")
@@ -20,14 +21,10 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# CORS —— 仅允许前端开发服务器和本地访问
+# CORS —— 开发默认localhost, 公网部署时设环境变量 CORS_ORIGINS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://127.0.0.1:3000",
-        "http://localhost:8000",
-    ],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",")],
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "DELETE"],
     allow_headers=["Authorization", "Content-Type"],

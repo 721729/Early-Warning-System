@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://:redis123@localhost:6379/0"
 
+    # CORS —— 逗号分隔, 默认本地开发, 部署时设环境变量 CORS_ORIGINS=https://your-domain.com
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:8000"
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
