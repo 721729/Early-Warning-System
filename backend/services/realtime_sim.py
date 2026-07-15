@@ -1,100 +1,41 @@
 """
-实时仿真引擎 —— 在内存中模拟焚烧炉DCS数据流
-每次调用 advance(n_hours) 推进n小时, 返回最新的48h传感器窗口 + 壁厚趋势历史
+实时仿真引擎 —— 独立实例，每次API调用新建Simulation
 """
 import numpy as np
-from ml.config import MATERIAL_PARAMS, SIMULATION
+from ml.config import MATERIAL_PARAMS
 
 _params = MATERIAL_PARAMS["T22"]
-_state = {
-    "hours": 0,          # 当前模拟小时数
-    "wall_thickness": 6.0,  # 当前壁厚
-    "history": [],       # [(hour, wall_thickness, hcl, temp, corrosion_rate), ...]
-    "anomaly_active": False,
-    "anomaly_start": 2880,  # 第120天(小时)
-    "anomaly_spike": 2890,  # 突变点
-}
 
-def _gen_hcl(hour):
-    """生成HCl浓度: 正常800-1200, 异常段1600-1800"""
-    if _state["anomaly_spike"] <= hour < _state["anomaly_spike"] + 2:
-        return np.random.uniform(1700, 1900)   # 2小时突变
-    elif _state["anomaly_start"] <= hour < _state["anomaly_start"] + 336:  # 14天
-        return np.random.uniform(1550, 1800)
-    else:
+class Simulation:
+    def __init__(self):
+        self.hours = 0; self.wall = 6.0; self.history = []
+        self.a_start = 2880; self.a_spike = 2890
+
+    def _hcl(self, h):
+        if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 1900)
+        elif self.a_start <= h < self.a_start + 336: return np.random.uniform(1550, 1800)
         return 1000 + np.random.randn() * 80
 
-def _gen_temp(hour):
-    """生成炉温: 正常560-590, 异常段略降"""
-    base = 575
-    if _state["anomaly_spike"] <= hour < _state["anomaly_spike"] + 2:
-        base = 555  # 突变时段炉温微降
-    elif _state["anomaly_start"] <= hour < _state["anomaly_start"] + 336:
-        base = 565
-    return base + np.random.randn() * 8
+    def _temp(self, h):
+        b = 555 if (self.a_spike <= h < self.a_spike + 2) else 565 if (self.a_start <= h < self.a_start + 336) else 575
+        return b + np.random.randn() * 8
 
-def _corrosion_rate(hcl, temp_c):
-    """阿伦尼乌斯方程"""
-    p = _params
-    tk = temp_c + 273.15
-    return p.A * np.exp(-p.Ea / (p.R * tk)) * (max(hcl, 1) ** p.m) * (300 ** p.n)
+    def advance_to(self, target):
+        while self.hours < target:
+            hcl = self._hcl(self.hours); temp = self._temp(self.hours)
+            tk = temp + 273.15
+            rate = _params.A * np.exp(-_params.Ea/(_params.R*tk)) * (max(hcl,1)**_params.m) * (300**_params.n)
+            self.wall -= rate / (365*24)
+            self.history.append({"h": self.hours, "w": round(self.wall,3), "hcl": round(hcl,1), "t": round(temp,1), "r": round(rate,4)})
+            self.hours += 1
 
-def advance_to(target_hour):
-    """推进仿真到目标小时，过程中生成所有数据"""
-    while _state["hours"] < target_hour:
-        h = _state["hours"]
-        hcl = _gen_hcl(h)
-        temp = _gen_temp(h)
-        rate = _corrosion_rate(hcl, temp)
-        _state["wall_thickness"] -= rate / (365 * 24)
-        _state["history"].append({
-            "hour": h, "wall": round(_state["wall_thickness"], 3),
-            "hcl": round(hcl, 1), "temp": round(temp, 1),
-            "rate": round(rate, 4)
-        })
-        _state["hours"] += 1
-
-
-def generate_window(hours_back=48):
-    """返回最近48小时传感器窗口 + 趋势历史"""
-    # 确保有足够历史
-    if _state["hours"] < hours_back:
-        advance_to(hours_back)
-
-    # 取最后48h
-    recent = _state["history"][-hours_back:]
-    # 构建15参数传感器窗口 (索引对应训练时的15个字段)
-    window = np.zeros((hours_back, 15), dtype=np.float32)
-    for i, r in enumerate(recent):
-        window[i, 0] = r["temp"]          # 炉膛温度
-        window[i, 1] = r["hcl"]           # HCl浓度
-        window[i, 2] = r["hcl"] * 0.2     # SO2 (近似)
-        window[i, 3] = 50 + np.random.randn() * 5    # CO
-        window[i, 4] = 8 + np.random.randn() * 0.3   # O2
-        window[i, 5] = 20 + np.random.randn() * 2    # 颗粒物
-        window[i, 6] = r["temp"] - 90            # 壁温
-        window[i, 7] = r["temp"] - 110
-        window[i, 8] = r["temp"] - 140
-        window[i, 9] = r["temp"] - 15            # 烟温
-        window[i, 10] = r["temp"] - 30
-        window[i, 11] = r["temp"] - 60
-        window[i, 12] = 40 + np.random.randn()  # 蒸汽流量
-        window[i, 13] = 4.0 + np.random.randn() * 0.05
-        window[i, 14] = 400 + np.random.randn()
-
-    return window, _state["history"]
-
-
-def advance_hours(n=1):
-    """推进n小时, 返回新的48h窗口 + 趋势数据"""
-    _state["hours"] += n
-    return generate_window()
-
-
-def current_anomaly_info():
-    """当前是否处于异常段"""
-    h = _state["hours"]
-    return {
-        "in_anomaly": _state["anomaly_start"] <= h,
-        "hours_since_start": h - _state["anomaly_start"] if h >= _state["anomaly_start"] else 0,
-    }
+    def window(self, sz=48):
+        if self.hours < sz: self.advance_to(sz)
+        rec = self.history[-sz:]
+        w = np.zeros((sz, 15), dtype=np.float32)
+        for i, r in enumerate(rec):
+            t = r["t"]; w[i,0]=t; w[i,1]=r["hcl"]; w[i,2]=r["hcl"]*.2
+            w[i,3]=50+np.random.randn()*5; w[i,4]=8+np.random.randn()*.3; w[i,5]=20+np.random.randn()*2
+            w[i,6]=t-90; w[i,7]=t-110; w[i,8]=t-140; w[i,9]=t-15; w[i,10]=t-30; w[i,11]=t-60
+            w[i,12]=40+np.random.randn(); w[i,13]=4.0+np.random.randn()*.05; w[i,14]=400+np.random.randn()
+        return w, rec
