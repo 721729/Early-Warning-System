@@ -49,7 +49,8 @@
               <div v-for="d in healthDevs" :key="d.name" class="hbar">
                 <span class="hname">{{ d.name }}</span>
                 <div class="h-track"><div :class="'hfill '+d.health" :style="{width: d.pct+'%'}"></div></div>
-                <span :class="'htag '+d.health">{{ d.label }}</span>
+                <span :class="'htag '+d.health">{{ d.label }} {{ d.pct }}%</span>
+                <span class="hdetail">腐蚀{{ d.rate }}mm/年 AI{{ d.score }}</span>
               </div>
             </div>
             <div class="health-legend">
@@ -95,8 +96,7 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { startSimulation } from '../api/simulator'
-import { notifyAPI } from '../api/request'
+import { notifyAPI, healthAPI } from '../api/request'
 
 const router = useRouter()
 const username = ref('admin')
@@ -117,41 +117,79 @@ const healthDevs = ref([
 
 const clock = setInterval(() => { now.value = new Date().toLocaleString('zh-CN') }, 1000)
 
-let stopSim = null
+let pollTimer = null
+
 async function loadNotices() {
   try { const r = await notifyAPI.list(); notices.value = r.data } catch(_) {}
 }
-onMounted(() => {
-  loadNotices()
-  stopSim = startSimulation((d) => {
-    Object.assign(data, d)
-    runDays.value = 195 + Math.floor(Math.random() * 3)
-    // 更新健康度
-    healthDevs.value[0].health = d.ai_alert === 'orange' ? 'orange' : 'green'
-    healthDevs.value[0].pct = +((d.wall_thickness || 5.9) / 6.0 * 100).toFixed(0)
-    healthDevs.value[0].label = d.ai_alert === 'orange' ? `预警 ${healthDevs.value[0].pct}%` : `健康 ${healthDevs.value[0].pct}%`
+
+// 每5秒从后端拉取AI推理的真实设备数据
+async function pollAI() {
+  try {
+    const { healthAPI } = await import('../api/request')
+    const r = await healthAPI.overview(1)
+    const devs = r.data
+    if (!devs || !devs.length) return
+
+    // 设备1: 高温过热器入口段 (主监控对象)
+    const d1 = devs[0]
+    runDays.value = 195
+    Object.assign(data, {
+      wall_thickness: d1.wall_thickness_ai || d1.wall_thickness || 5.90,
+      corrosion_rate: d1.corrosion_rate || 0.35,
+      rul_days: d1.rul_days || 5000,
+      ai_alert: d1.health || 'green',
+      hcl_conc: d1.hcl_conc || 1000,
+      flue_temp: d1.flue_temp || 570,
+      ai_score: d1.ai_anomaly_score || 0,
+    })
+
+    // 更新6个设备健康度条
+    const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
+    healthDevs.value = devs.slice(0, 6).map((d, i) => ({
+      name: d.name,
+      health: colorMap[d.health] || 'green',
+      pct: +((d.wall_thickness_ai || d.wall_thickness || 5.9) / (d.original || 6.0) * 100).toFixed(2),
+      label: d.health === 'orange' ? `预警` : d.health === 'yellow' ? `关注` : `健康`,
+      rate: d.corrosion_rate?.toFixed(2) || '0',
+      score: d.ai_anomaly_score?.toFixed(2) || '0',
+    }))
+
+    // 传感器数据
     sensors.value = [
-      { label: '炉膛温度', value: d.furnace_temp, unit: '°C', warn: d.furnace_temp < 550 },
-      { label: 'HCl 浓度', value: d.hcl_conc, unit: 'mg/m³', warn: d.hcl_conc > 1500 },
-      { label: 'SO₂ 浓度', value: d.so2_conc, unit: 'mg/m³', warn: false },
-      { label: 'O₂ 含量', value: d.o2_conc, unit: '%', warn: false },
-      { label: '主蒸汽流量', value: d.main_steam_flow, unit: 't/h', warn: false },
-      { label: '主蒸汽温度', value: d.main_steam_temp, unit: '°C', warn: false },
+      { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: (d1.flue_temp || 570) < 550 },
+      { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: (d1.hcl_conc || 1000) > 1500 },
+      { label: 'AI 异常得分', value: (d1.ai_anomaly_score || 0).toFixed(4), unit: '', warn: (d1.ai_anomaly_score || 0) > 0.5 },
+      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(4), unit: 'mm/年', warn: (d1.corrosion_rate || 0) > 0.30 },
+      { label: '壁厚预测', value: (d1.wall_thickness_ai || d1.wall_thickness || 5.9).toFixed(2), unit: 'mm', warn: false },
+      { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: (d1.rul_days || 0) < 100 },
     ]
-    mockAlerts.value = d.ai_alert === 'orange' ? [{
-      id: Date.now(), level: 'orange',
-      title: '过热器腐蚀加速预警',
-      time: new Date().toLocaleTimeString('zh-CN'),
-      desc: `HCl浓度升高至${d.hcl_conc}mg/m³，AI检测到腐蚀速率异常加速，当前壁厚${d.wall_thickness}mm`,
-      confidence: +(d.ai_anomaly_score * 100).toFixed(1),
-      loss: 420000
-    }] : []
+
+    // 预警
+    if (d1.health === 'orange' || d1.health === 'red') {
+      mockAlerts.value = [{
+        id: Date.now(), level: d1.health,
+        title: d1.health === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
+        time: new Date().toLocaleTimeString('zh-CN'),
+        desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀速率${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI异常得分${(d1.ai_anomaly_score||0).toFixed(2)}, 壁厚${(d1.wall_thickness_ai||d1.wall_thickness||0).toFixed(2)}mm`,
+        confidence: +((d1.ai_anomaly_score || 0) * 100).toFixed(1),
+        loss: 420000
+      }]
+    } else {
+      mockAlerts.value = []
+    }
     activeAlerts.value = mockAlerts.value.length
     nextTick(drawTrend)
-  })
+  } catch(_) {}
+}
+
+onMounted(() => {
+  loadNotices()
+  pollAI()
+  pollTimer = setInterval(pollAI, 5000)  // 每5秒拉一次AI数据
   nextTick(drawTrend)
 })
-onUnmounted(() => { clearInterval(clock); if (stopSim) stopSim() })
+onUnmounted(() => { clearInterval(clock); if (pollTimer) clearInterval(pollTimer) })
 
 const trend = ref(null)
 function drawTrend() {
@@ -227,6 +265,7 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 @keyframes hPulse { 50% { opacity: .7; } }
 .htag { width: 80px; font-size: 11px; font-weight: 700; flex-shrink: 0; }
 .htag.green { color: #00e676; } .htag.yellow { color: #ffeb3b; } .htag.orange { color: #ff9100; } .htag.red { color: #ff1744; }
+.hdetail { width: 160px; font-size: 10px; color: #546e7a; flex-shrink: 0; text-align: right; }
 .health-legend { display: flex; gap: 16px; margin-top: 10px; font-size: 10px; color: #546e7a; }
 .health-legend .dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 4px; }
 .dot.g { background: #00e676; } .dot.y { background: #ffeb3b; } .dot.o { background: #ff9100; } .dot.r { background: #ff1744; }
