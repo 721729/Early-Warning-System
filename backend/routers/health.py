@@ -1,20 +1,21 @@
-"""设备健康度 & AI推理接口"""
+"""设备健康度 & AI实时推理 —— 内存仿真+去重预警"""
 from fastapi import APIRouter, Depends, Query
 from typing import List
 import numpy as np
-import pandas as pd
 from pathlib import Path
+import datetime
 
 from backend.middleware.auth import require_role
-from backend.routers.users import broadcast_notification
 from backend.routers.alert import create_alert_internal, AutoAlertReq
 from backend.models.database import SessionLocal
+from backend.models.tables import AlertLog
+from backend.services import realtime_sim as sim
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
-# ---- AI 模型加载 (启动时尝试) ----
 _MODEL_READY = False
 _predict_fn = None
+_last_alert_hour = -999  # 去重: 同一小时内不重复报警
 
 try:
     from backend.services.inference_service import load_model as _load_ml, predict as _ml_predict
@@ -23,148 +24,121 @@ try:
     _MODEL_READY = True
     print("[AI] PatchTST 模型加载成功")
 except Exception as e:
-    print(f"[AI] 模型未加载(将使用Demo数据): {e}")
+    print(f"[AI] 模型未加载: {e}")
 
-
-# ---- 设备列表 ----
 _DEVICES = [
-    {"id": 1, "name": "高温过热器入口段第1排", "type": "过热器",
-     "health": "orange", "wall_thickness": 5.1, "original": 6.0,
-     "corrosion_rate": 0.35, "rul_days": 45, "dcs_tag": "HAH10"},
-    {"id": 2, "name": "高温过热器入口段第2排", "type": "过热器",
-     "health": "yellow", "wall_thickness": 5.4, "original": 6.0,
-     "corrosion_rate": 0.18, "rul_days": 200, "dcs_tag": "HAH10"},
-    {"id": 3, "name": "中温过热器", "type": "过热器",
-     "health": "green", "wall_thickness": 5.8, "original": 6.0,
-     "corrosion_rate": 0.05, "rul_days": 800, "dcs_tag": "HAH20"},
-    {"id": 4, "name": "低温过热器", "type": "过热器",
-     "health": "green", "wall_thickness": 5.9, "original": 6.0,
-     "corrosion_rate": 0.03, "rul_days": 1200, "dcs_tag": "HAH30"},
-    {"id": 5, "name": "省煤器", "type": "省煤器",
-     "health": "green", "wall_thickness": 5.5, "original": 6.0,
-     "corrosion_rate": 0.02, "rul_days": 3000, "dcs_tag": "HAD10"},
-    {"id": 6, "name": "引风机", "type": "引风机",
-     "health": "green", "wall_thickness": 0, "original": 0,
-     "corrosion_rate": 0, "rul_days": 9999, "dcs_tag": "HAC10"},
+    {"id": 1, "name": "高温过热器(入口)", "type": "过热器", "original": 6.0},
+    {"id": 2, "name": "高温过热器(出口)", "type": "过热器", "original": 6.0},
+    {"id": 3, "name": "中温过热器", "type": "过热器", "original": 6.0},
+    {"id": 4, "name": "低温过热器", "type": "过热器", "original": 6.0},
+    {"id": 5, "name": "省煤器", "type": "省煤器", "original": 6.0},
+    {"id": 6, "name": "引风机", "type": "引风机", "original": 0},
 ]
 
 
 @router.get("/ai-status")
 async def ai_status():
-    """前端检查AI是否在线"""
     return {"ai_ready": _MODEL_READY, "model": "PatchTST (GitHub)", "params": 473907}
 
 
 @router.get("/overview")
 async def get_overview(
     plant_id: int = Query(1),
-    time_offset: int = Query(0, description="时间偏移(小时), 0=最新, 2900=异常段"),
+    time_offset: int = Query(0, description="时间偏移: 0=最新, 2880=异常段起始"),
     user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ) -> List[dict]:
-    """设备列表 + AI推理结果(time_offset可快进到异常时段)"""
+    global _last_alert_hour
     result = [dict(d) for d in _DEVICES]
 
+    # 实时仿真: 推进到目标时间并生成数据
+    target_hour = time_offset if time_offset > 0 else sim._state["hours"] + 1
+    sim.advance_to(target_hour)
+    window, history = sim.generate_window(48)
+
+    anomaly_info = sim.current_anomaly_info()
+    current_hour = sim._state["hours"]
+
     if _MODEL_READY and _predict_fn:
-        try:
-            csv_path = Path(__file__).parent.parent.parent / "ml" / "simulation_data.csv"
-            df = pd.read_csv(csv_path)
-            cols = [c for c in df.columns if c not in
-                    ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
-            X = df[cols].values[::60].astype(np.float32)
-            total_hours = len(X)
+        # AI推理
+        pred = _predict_fn(window)
 
-            # time_offset: 0=最新, 正数=往前偏移
-            if time_offset > 0 and time_offset + 48 < total_hours:
-                idx = min(time_offset, total_hours - 48)
-            else:
-                idx = max(0, total_hours - 48)
+        # 去重: 同一小时内已经报过警不再重复
+        if current_hour != _last_alert_hour:
+            _last_alert_hour = current_hour
+            try:
+                db = SessionLocal()
+                create_alert_internal(db, AutoAlertReq(
+                    device_id=1, device_name="高温过热器(入口)",
+                    alert_level=pred["alert_level"],
+                    reason=f"{'⚠' if pred['alert_level']!='green' else '✓'} "
+                           f"AI实时推理: MSE={pred['reconstruction_error']:.4f}，"
+                           f"腐蚀速率{pred['corrosion_rate']}mm/年，"
+                           f"HCl={pred.get('hcl_conc',0):.0f}mg/m³，"
+                           f"壁厚{pred['wall_thickness_pred']}mm，"
+                           f"异常得分{pred['anomaly_score']:.2f}",
+                    corrosion_rate=pred['corrosion_rate'],
+                    wall_thickness=pred['wall_thickness_pred'],
+                    rul_days=pred['rul_days'],
+                    ai_score=pred['anomaly_score'],
+                    predicted_loss=420000 if pred['alert_level'] != 'green' else 0
+                ))
+                db.close()
+            except Exception as e:
+                print(f"[Alert] {e}")
 
-            pred_main = _predict_fn(X[idx:idx+48])
-            pred_normal = _predict_fn(X[100:148])
+        # 更新设备1
+        result[0].update({
+            "health": pred["alert_level"],
+            "corrosion_rate": pred["corrosion_rate"],
+            "rul_days": pred["rul_days"],
+            "ai_anomaly_score": pred["anomaly_score"],
+            "ai_reconstruction_error": pred["reconstruction_error"],
+            "wall_thickness_ai": pred["wall_thickness_pred"],
+            "hcl_conc": pred.get("hcl_conc", 0),
+            "flue_temp": pred.get("flue_temp", 0),
+        })
+    else:
+        # 无模型时用纯阿伦尼乌斯
+        last = history[-1] if history else {"wall": 5.9, "rate": 0.2, "hcl": 1000, "temp": 570}
+        result[0].update({
+            "health": "yellow" if last["rate"] > 0.30 else "green",
+            "corrosion_rate": last["rate"],
+            "rul_days": max((last["wall"] - 3.0) / max(last["rate"], 1e-8) * 365, 1),
+            "ai_anomaly_score": 0.5,
+            "wall_thickness_ai": last["wall"],
+            "hcl_conc": last["hcl"],
+            "flue_temp": last["temp"],
+        })
 
-            # Demo模式: 每次请求都生成一条预警记录（time_offset!=0时模拟检测）
-            if time_offset != 0:
-                try:
-                    db = SessionLocal()
-                    create_alert_internal(db, AutoAlertReq(
-                        device_id=1, device_name="高温过热器入口段",
-                        alert_level=pred_main["alert_level"],
-                        reason=f"{'⚠' if pred_main['alert_level']!='green' else '✓'} "
-                               f"AI推理: MSE={pred_main['reconstruction_error']:.4f}(阈值0.0015)，"
-                               f"腐蚀速率{pred_main['corrosion_rate']}mm/年，"
-                               f"HCl={pred_main.get('hcl_conc',0):.0f}mg/m³，"
-                               f"壁厚预测{pred_main['wall_thickness_pred']}mm",
-                        corrosion_rate=pred_main['corrosion_rate'],
-                        wall_thickness=pred_main['wall_thickness_pred'],
-                        rul_days=pred_main['rul_days'],
-                        ai_score=pred_main['anomaly_score'],
-                        predicted_loss=420000 if pred_main['alert_level']!='green' else 0
-                    ))
-                    db.close()
-                except Exception as e:
-                    print(f"[Alert] 保存失败: {e}")
-            result[0].update({
-                "health": pred_main["alert_level"],
-                "corrosion_rate": pred_main["corrosion_rate"],
-                "rul_days": pred_main["rul_days"],
-                "ai_anomaly_score": pred_main["anomaly_score"],
-                "ai_reconstruction_error": pred_main["reconstruction_error"],
-                "wall_thickness_ai": pred_main["wall_thickness_pred"],
-                "hcl_conc": pred_main.get("hcl_conc", 0),
-                "flue_temp": pred_main.get("flue_temp", 0),
-                "time_offset": time_offset,
-                "total_hours": total_hours,
-            })
+    # 设备2-5共享相同趋势
+    last = history[-1] if history else {"wall": 5.9, "rate": 0.2}
+    for i in range(1, 5):
+        result[i].update({
+            "health": "green",
+            "corrosion_rate": round(last["rate"] * (0.5 + i * 0.15), 4),
+            "rul_days": 1000 + i * 500,
+            "wall_thickness_ai": round(last["wall"] + i * 0.3, 2),
+        })
 
-            # 设备2: 高温过热器出口段 —— 正常工况(对比参考)
-            result[1]["health"] = pred_normal["alert_level"]
-            result[1]["corrosion_rate"] = pred_normal["corrosion_rate"]
-            result[1]["rul_days"] = pred_normal["rul_days"]
-            result[1]["ai_anomaly_score"] = pred_normal["anomaly_score"]
-            result[1]["wall_thickness_ai"] = pred_normal["wall_thickness_pred"]
-            result[1]["hcl_conc"] = pred_normal.get("hcl_conc", 0)
-
-            # 设备3〜6也用正常工况基线
-            for i in range(2, 6):
-                result[i]["ai_anomaly_score"] = pred_normal["anomaly_score"]
-                result[i]["corrosion_rate"] = pred_normal["corrosion_rate"] * (0.3 + i * 0.1)
-        except Exception as e:
-            print(f"[AI] 推理失败: {e}")
+    # 附上趋势历史
+    result[0]["trend_history"] = [{"hour": h["hour"], "wall": h["wall"],
+                                     "hcl": h["hcl"], "rate": h["rate"]}
+                                  for h in history[-200:]]
 
     return result
 
 
-@router.get("/device/{device_id}")
-async def get_device_detail(
-    device_id: int,
-    time_range: str = Query("7d"),
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
-) -> dict:
-    dev = next((d for d in _DEVICES if d["id"] == device_id), None)
-    if not dev:
-        return {"error": "设备不存在"}
-    import random
-    random.seed(device_id)
-    history = []
-    wall = dev["original"] if dev["original"] > 0 else 6.0
-    for i in range(180):
-        wall -= dev["corrosion_rate"] / 365 + random.uniform(-0.001, 0.003)
-        history.append({"day": i + 1, "wall_thickness": round(max(wall, 0.1), 2)})
-    return {**dev, "history": history}
-
-
-@router.post("/ai/predict")
-async def ai_predict_endpoint(
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
-) -> dict:
-    """手动触发AI推理 —— 返回最新预测结果"""
-    if not _MODEL_READY or not _predict_fn:
-        return {"error": "AI模型未加载, 请确保已运行 ml/train.py"}
-
-    csv_path = Path(__file__).parent.parent.parent / "ml" / "simulation_data.csv"
-    df = pd.read_csv(csv_path)
-    cols = [c for c in df.columns if c not in
-            ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
-    X = df[cols].values[::60].astype(np.float32)
-    window = X[-48:]
-    return _predict_fn(window)
+@router.put("/alerts/{alert_id}/resolve")
+async def resolve_alert(
+    alert_id: int,
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"]))
+):
+    """标记预警为已处理"""
+    db = SessionLocal()
+    alert = db.query(AlertLog).filter(AlertLog.id == alert_id).first()
+    if alert:
+        alert.status = "resolved"
+        alert.close_time = datetime.datetime.now()
+        db.commit()
+    db.close()
+    return {"msg": f"预警{alert_id}已处理"}
