@@ -60,9 +60,9 @@ async def overview(
                     predicted_loss=420000 if pred['alert_level']!='green' else 0))
                 db.close()
             except Exception as e: print(f"[Alert] {e}")
-        # RUL: 壁厚<4.5mm用历史最大速率(保守), 否则用近48h平均
+        # RUL: 壁厚<4.5mm用全历史最大速率(保守), 否则用近48h平均
         rate_48h = np.mean([x["r"] for x in hist[-48:]] or [0.01])
-        rate_max = max((x["r"] for x in hist), default=0.01)
+        rate_max = max((x["r"] for x in _sim.history), default=0.01)  # 全历史
         rate_rul = max(rate_48h, rate_max) if _sim.wall < 4.5 else rate_48h
 
         result[0].update({"health":pred["alert_level"],
