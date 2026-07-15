@@ -4,12 +4,12 @@
     <header class="topbar">
       <div class="logo">⚡ 绿电哨兵</div>
       <div class="info">
-        <span class="plant">新沂项目 #1炉 · 运行中</span>
+        <span class="plant">新沂项目 #1炉 · 仿真运行中</span>
         <span class="time-ctrl">
-          时间轴: <button class="btn-time" @click="shiftTime(-500)">⏪ 正常</button>
-          <button class="btn-time" @click="shiftTime(2880)">⏩ 异常段</button>
-          <button class="btn-time" @click="shiftTime(0)">🔄 最新</button>
-          <span style="font-size:10px;color:#546e7a">偏移:{{ timeOffset }}h</span>
+          <button class="btn-time" @click="toggleAuto">{{ autoMode ? '⏸ 暂停' : '▶ 自动推进' }}</button>
+          <button class="btn-time" @click="resetSim">🔄 重置</button>
+          <button class="btn-time" @click="jumpToAnomaly">⏩ 快进到异常</button>
+          <span style="font-size:10px;color:#546e7a">{{ runDays }}h</span>
         </span>
         <span class="time">{{ now }}</span>
         <span class="user">{{ username }}</span>
@@ -138,25 +138,35 @@ const router = useRouter()
 const username = ref('admin')
 const now = ref('')
 const runDays = ref(195)
-const timeOffset = ref(0)
+const autoMode = ref(true)
 
-async function shiftTime(offset) {
-  timeOffset.value = offset
-  await pollAI()
-  // 直接用pollAI更新的数据构建预警卡片，不拉API旧数据
-  if (data.ai_alert !== 'green') {
-    mockAlerts.value = [{
-      id: Date.now(), level: data.ai_alert,
-      title: 'AI实时检测预警',
-      time: new Date().toLocaleTimeString('zh-CN'),
-      desc: `HCl=${(data.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀速率${(data.corrosion_rate||0).toFixed(2)}mm/年, AI-MSE=${(data.ai_score||0).toFixed(4)}, 壁厚${(data.wall_thickness||5.9).toFixed(2)}mm`,
-      loss: 420000, rul_days: (data.rul_days||0).toFixed(0), confidence: 85
-    }]
-  } else {
-    mockAlerts.value = []
-  }
-  activeAlerts.value = mockAlerts.value.length
+// 自动推进: 每次轮询前进1小时
+async function autoAdvance() {
+  try {
+    const r = await request.get('/health/overview', { params: { advance: 1 } })
+    if (r.data?.length) updateDashboard(r.data)
+  } catch(e) { console.warn('[绿电哨兵]', e.message) }
 }
+
+// 跳转到异常时段
+async function jumpToAnomaly() {
+  autoMode.value = false
+  try {
+    const need = Math.max(2880 - runDays.value, 1)
+    const r = await request.get('/health/overview', { params: { advance: need } })
+    if (r.data?.length) updateDashboard(r.data)
+  } catch(e) {}
+}
+
+// 重置仿真
+async function resetSim() {
+  try {
+    await request.get('/health/overview', { params: { reset: true } })
+    pollAI()
+  } catch(e) {}
+}
+
+function toggleAuto() { autoMode.value = !autoMode.value }
 const notices = ref([])
 const showNotices = ref(false)
 const newNotice = ref('')
@@ -207,77 +217,64 @@ let pollTimer = null
 
 
 // 每5秒从后端拉取AI推理的真实设备数据
+// 轮询当前数据(不推进仿真)
 async function pollAI() {
   try {
-    const r = await request.get('/health/overview', { params: { plant_id: 1, time_offset: timeOffset.value } })
-    const devs = r.data
-    if (!devs || !devs.length) return
+    const r = await request.get('/health/overview', { params: { advance: 0 } })
+    if (r.data?.length) updateDashboard(r.data)
+  } catch(e) { console.warn('[绿电哨兵]', e.message) }
+}
 
-    // 设备1: 高温过热器入口段 (主监控对象)——每个字段给默认值防崩
-    const d1 = devs[0] || {}
-    const safeGet = (obj, key, fallback) => (obj && obj[key] != null) ? obj[key] : fallback
-    runDays.value = timeOffset.value || safeGet(d1, 'trend', {length:195}).length || 195
-    Object.assign(data, {
-      wall_thickness: safeGet(d1, 'wall_thickness_ai', 5.9),
-      corrosion_rate: safeGet(d1, 'corrosion_rate', 0.2),
-      rul_days: safeGet(d1, 'rul_days', 5000),
-      ai_alert: safeGet(d1, 'health', 'green'),
-      hcl_conc: safeGet(d1, 'hcl_conc', 1000),
-      flue_temp: safeGet(d1, 'flue_temp', 570),
-      ai_score: safeGet(d1, 'ai_anomaly_score', 0.1),
-    })
-
-    // 存储趋势数据供图表使用
-    if (d1.trend) window._trendData = d1.trend
-    // 更新6个设备健康度条
-    const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
-    healthDevs.value = devs.slice(0, 6).map((d, i) => ({
-      name: d.name,
-      health: colorMap[d.health] || 'green',
-      // 壁厚百分比 = 真实物理健康度 (6.0mm原壁厚 → 3.0mm危险)
-      pct: +(((d.wall_thickness_ai || d.original || 6.0) - 3.0) / 3.0 * 100).toFixed(0),
-      label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
-      rate: (d.corrosion_rate || 0.15).toFixed(2),
-    }))
-
-    // 传感器数据
-    const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
-    const h = d1.health || 'green'
-    sensors.value = [
-      { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 },
-      { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 },
-      { label: 'AI 异常检测', value: healthMap[h] || '✓ 正常', unit: '', warn: h !== 'green', isText: true },
-      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 0.25 },
-      { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4.0 },
-      { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 100 },
-    ]
-
-    // 预警触发时显示工单链接 + 运维建议
-    if (d1.health === 'yellow' || d1.health === 'orange' || d1.health === 'red') {
-      mockAlerts.value = [{
-        id: Date.now(), level: d1.health,
-        title: d1.health === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
-        time: new Date().toLocaleTimeString('zh-CN'),
-        desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀速率${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI异常得分${(d1.ai_anomaly_score||0).toFixed(2)}, 壁厚${(d1.wall_thickness_ai||d1.wall_thickness||0).toFixed(2)}mm`,
-        confidence: +((d1.ai_anomaly_score || 0) * 100).toFixed(1),
-        loss: 420000,
-        rul_days: (d1.rul_days||0).toFixed(0),
-        workorder_id: d1.workorder_id || null
-      }]
-    } else {
-      mockAlerts.value = []
-    }
-    activeAlerts.value = mockAlerts.value.length
-    nextTick(drawTrend)
-  } catch(e) {
-    console.warn('[绿电哨兵] AI数据拉取失败:', e.message || e)
-  }
+// 更新仪表盘所有数据
+function updateDashboard(devs) {
+  if (!devs?.length) return
+  const d1 = devs[0] || {}
+  const safeGet = (obj, key, fb) => (obj && obj[key] != null) ? obj[key] : fb
+  runDays.value = safeGet(d1, 'trend', {length:200}).length || 200
+  Object.assign(data, {
+    wall_thickness: safeGet(d1, 'wall_thickness_ai', 5.9),
+    corrosion_rate: safeGet(d1, 'corrosion_rate', 0.2),
+    rul_days: safeGet(d1, 'rul_days', 5000),
+    ai_alert: safeGet(d1, 'health', 'green'),
+    hcl_conc: safeGet(d1, 'hcl_conc', 1000),
+    flue_temp: safeGet(d1, 'flue_temp', 570),
+    ai_score: safeGet(d1, 'ai_anomaly_score', 0.1),
+  })
+  if (d1.trend) window._trendData = d1.trend
+  const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
+  healthDevs.value = devs.slice(0, 6).map(d => ({
+    name: d.name, health: colorMap[d.health] || 'green',
+    pct: +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0),
+    label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
+    rate: (d.corrosion_rate || 0.15).toFixed(2),
+  }))
+  const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
+  const h = d1.health || 'green'
+  sensors.value = [
+    { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 },
+    { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 },
+    { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: h !== 'green', isText: true },
+    { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 0.25 },
+    { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
+    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 100 },
+  ]
+  if (h !== 'green') {
+    mockAlerts.value = [{
+      id: Date.now(), level: h,
+      title: h === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
+      time: new Date().toLocaleTimeString('zh-CN'),
+      desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI得分${(d1.ai_anomaly_score||0).toFixed(2)}`,
+      loss: 420000, rul_days: (d1.rul_days||0).toFixed(0), confidence: 85
+    }]
+  } else { mockAlerts.value = [] }
+  activeAlerts.value = mockAlerts.value.length
+  nextTick(drawTrend)
 }
 
 onMounted(() => {
   loadNotices()
   pollAI()
-  pollTimer = setInterval(() => { if (timeOffset.value === 0) pollAI() }, 5000)  // 自动模式每5秒拉AI
+  pollTimer = setInterval(() => { if (autoMode.value) autoAdvance() }, 3000)  // 自动模式每3秒推进1h
   nextTick(drawTrend)
 })
 onUnmounted(() => { clearInterval(clock); if (pollTimer) clearInterval(pollTimer) })

@@ -12,6 +12,7 @@ from backend.services.realtime_sim import Simulation
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
 _MODEL_READY = False; _predict_fn = None; _last_hour = -999
+_sim = Simulation()  # 持久仿真实例，启动时创建
 
 try:
     from backend.services.inference_service import load_model as _lm, predict as _pr
@@ -30,16 +31,18 @@ async def ai_status(): return {"ai_ready": _MODEL_READY}
 
 @router.get("/overview")
 async def overview(
-    plant_id: int = Query(1), time_offset: int = Query(0),
+    plant_id: int = Query(1), advance: int = Query(0, description="推进小时数，0=不推进"),
+    reset: bool = Query(False, description="重置仿真"),
     user: dict = Depends(require_role(["admin","值长","检修班长","厂长","管理员"]))
 ) -> List[dict]:
-    global _last_hour
+    global _last_hour, _sim
     result = [dict(d) for d in _DEV]
-    sim = Simulation()
-    target = max(time_offset, 48) if time_offset else 48
-    sim.advance_to(target)
-    window, hist = sim.window(48)
-    h = sim.hours; last = hist[-1]
+
+    if reset: _sim = Simulation()  # 重置
+    if advance > 0: _sim.advance_to(_sim.hours + advance)
+    elif _sim.hours < 48: _sim.advance_to(48)  # 首次自动初始化
+    window, hist = _sim.window(48)
+    h = _sim.hours; last = hist[-1]
 
     if _MODEL_READY and _predict_fn:
         pred = _predict_fn(window)
