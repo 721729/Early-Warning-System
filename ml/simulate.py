@@ -38,16 +38,10 @@ def run():
     timestamps = pd.date_range("2025-01-01", periods=total_steps, freq="min")
     days = np.arange(total_steps) / (24 * 60)
 
-    # ---- HCl浓度 (AR1 + 异常注入) ----
+    # ---- HCl浓度 (AR1) ----
     hcl = np.clip(generate_ar1(total_steps, phi=0.995, sigma=20,
                                 init=np.mean(S["hcl_normal_range"])), 100, 3000)
     h2s = np.clip(generate_ar1(total_steps, phi=0.997, sigma=8, init=300), 50, 600)
-
-    # 异常工况: 第120天起HCl持续偏高2周
-    anomaly_start = S["anomaly_start_day"] * 24 * 60
-    anomaly_end = anomaly_start + S["anomaly_duration_days"] * 24 * 60
-    hcl[anomaly_start:anomaly_end] = np.random.uniform(
-        *S["hcl_anomaly_range"], anomaly_end - anomaly_start)
 
     # ---- 温度 (AR1 + 压限) ----
     flue_temp = generate_ar1(total_steps, phi=0.999, sigma=2,
@@ -89,6 +83,18 @@ def run():
     main_steam_flow = np.clip(main_steam_flow, 35, 45)
     main_steam_press = generate_ar1(total_steps, phi=0.999, sigma=0.05, init=4.0)
     main_steam_temp = generate_ar1(total_steps, phi=0.999, sigma=1.5, init=400)
+
+    # ---- 异常注入: 第120天突然投入高氯垃圾 → HCl在2h内从1000飙到1800 + 炉温波动 + O₂变化 ----
+    anomaly_start = S["anomaly_start_day"] * 24 * 60
+    anomaly_spike = 120  # 2小时突变
+    spike_mid = anomaly_start + 60
+    hcl[spike_mid:spike_mid+anomaly_spike] = np.random.uniform(*S["hcl_anomaly_range"], anomaly_spike)
+    flue_temp[spike_mid:spike_mid+anomaly_spike] -= 10  # 燃烧不稳炉温微降
+    o2[spike_mid:spike_mid+anomaly_spike] += 1.5           # O₂升高
+    # 持续2周高HCl期
+    anomaly_end = anomaly_start + S["anomaly_duration_days"] * 24 * 60
+    hcl[spike_mid+anomaly_spike:anomaly_end] = np.random.uniform(*S["hcl_anomaly_range"],
+        anomaly_end - spike_mid - anomaly_spike)
 
     # ---- 加噪声 (3%白噪声) ----
     def add_noise(arr):

@@ -76,18 +76,18 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # 判定逻辑: 腐蚀速率为主（化学方程，信号强度48%），AI MSE为辅
-    rate_high = rate > 0.30        # 腐蚀速率超0.30mm/年
-    rate_danger = rate > 0.50      # 腐蚀速率超0.50mm/年
-    mse_high = mse > _THRESHOLD * 1.5  # MSE超1.5倍阈值
+    # 判定: AI MSE为主(1.7x跳变)，腐蚀速率为辅助确认
+    mse_high = mse > 0.0015    # 超正常MSE 1.5倍
+    mse_danger = mse > 0.0025  # 严重偏离
+    rate_high = rate > 0.30    # 腐蚀加速
     wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
 
-    if wall_danger:                              alert_level = "red"
-    elif rate_danger or (rate_high and mse_high): alert_level = "orange"
-    elif rate_high:                               alert_level = "yellow"
-    else:                                         alert_level = "green"
+    if wall_danger:                      alert_level = "red"
+    elif mse_danger and rate_high:        alert_level = "orange"
+    elif mse_high:                        alert_level = "yellow"
+    else:                                 alert_level = "green"
 
-    score = min(mse / max(_THRESHOLD, 1e-8), 1.0)
+    score = min(mse / max(0.0015, 1e-8), 1.0)
 
     return {
         "corrosion_rate": round(rate, 4),
