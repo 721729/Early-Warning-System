@@ -3,14 +3,14 @@
     <div class="login-box">
       <h1>⚡ 绿电哨兵</h1>
       <p class="subtitle">焚烧炉设备健康度监测平台</p>
-      <form @submit.prevent="handleLogin">
+      <form @submit.prevent="handleLogin" autocomplete="off">
         <div class="field">
           <label>工号</label>
-          <input v-model="form.username" type="text" placeholder="输入工号" autocomplete="username" />
+          <input v-model="form.username" type="text" placeholder="输入工号" autocomplete="off" />
         </div>
         <div class="field">
           <label>密码</label>
-          <input v-model="form.password" type="password" placeholder="输入密码" autocomplete="current-password" />
+          <input v-model="form.password" type="password" placeholder="输入密码" autocomplete="off" />
         </div>
         <p v-if="error" class="error">{{ error }}</p>
         <button type="submit" :disabled="loading">
@@ -23,12 +23,18 @@
 </template>
 
 <script setup>
-import { reactive, ref } from 'vue'
+import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../api/request'
 
 const router = useRouter()
 const form = reactive({ username: '', password: '' })
+
+// 每次页面加载清空表单（防止浏览器自动填充残留）
+onMounted(() => {
+  form.username = ''
+  form.password = ''
+})
 const loading = ref(false)
 const error = ref('')
 
