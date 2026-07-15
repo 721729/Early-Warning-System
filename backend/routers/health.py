@@ -7,6 +7,8 @@ from pathlib import Path
 
 from backend.middleware.auth import require_role
 from backend.routers.users import broadcast_notification
+from backend.routers.alert import create_alert_internal, AutoAlertReq
+from backend.models.database import SessionLocal
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
@@ -81,11 +83,25 @@ async def get_overview(
             pred_normal = _predict_fn(X[100:148])
 
             # 设备1: 高温过热器入口段 —— time_offset指向的时段
-            if pred_main["alert_level"] in ("orange", "red"):
-                broadcast_notification(
-                    f"⚠ AI预警: 高温过热器入口段触发{pred_main['alert_level']}级预警，"
-                    f"腐蚀速率{pred_main['corrosion_rate']}mm/年，壁厚预测{pred_main['wall_thickness_pred']}mm",
-                    created_by="AI系统")
+            if pred_main["alert_level"] in ("yellow", "orange", "red"):
+                try:
+                    db = SessionLocal()
+                    create_alert_internal(db, AutoAlertReq(
+                        device_id=1, device_name="高温过热器入口段",
+                        alert_level=pred_main["alert_level"],
+                        reason=f"AI检测异常: 重建MSE={pred_main['reconstruction_error']:.4f}(阈值0.0015)，"
+                               f"腐蚀速率{pred_main['corrosion_rate']}mm/年，"
+                               f"HCl={pred_main.get('hcl_conc',0):.0f}mg/m³，"
+                               f"壁厚预测{pred_main['wall_thickness_pred']}mm",
+                        corrosion_rate=pred_main['corrosion_rate'],
+                        wall_thickness=pred_main['wall_thickness_pred'],
+                        rul_days=pred_main['rul_days'],
+                        ai_score=pred_main['anomaly_score'],
+                        predicted_loss=420000
+                    ))
+                    db.close()
+                except Exception as e:
+                    print(f"[Alert] 保存失败: {e}")
             result[0].update({
                 "health": pred_main["alert_level"],
                 "corrosion_rate": pred_main["corrosion_rate"],

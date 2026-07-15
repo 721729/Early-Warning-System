@@ -4,26 +4,25 @@
   <nav class="side"><router-link to="/" class="nav-item">🏠 总览</router-link><router-link to="/alerts" class="nav-item active">⚠️ 预警记录</router-link><router-link to="/ai" class="nav-item">🧠 AI分析</router-link><router-link to="/audit" class="nav-item">📋 审计日志</router-link><router-link to="/users" class="nav-item">👥 用户管理</router-link><a href="#" class="nav-item" @click.prevent="logout">🚪 退出</a></nav>
   <main class="main">
     <h2 style="font-size:18px;color:#00e5ff;margin-bottom:16px">⚠️ 预警历史记录</h2>
-    <div class="card"><table><thead><tr><th>时间</th><th>等级</th><th>设备</th><th>预警原因</th><th>AI置信度</th><th>状态</th><th>操作</th></tr></thead><tbody>
+    <div class="card"><table><thead><tr><th>时间</th><th>等级</th><th>设备</th><th>预警原因</th><th>预估损失</th><th>状态</th><th>操作</th></tr></thead><tbody>
       <tr v-for="a in alerts" :key="a.id">
-        <td>{{ a.time }}</td><td><span :class="'badge badge-'+a.level">{{ a.level }}</span></td>
-        <td>{{ a.device }}</td><td style="max-width:300px;font-size:12px">{{ a.reason }}</td>
-        <td>{{ a.conf }}%</td><td>{{ a.status }}</td>
+        <td>{{ (a.alert_time||'').slice(0,19) }}</td><td><span :class="'badge badge-'+(a.alert_level||'yellow')">{{ a.alert_level }}</span></td>
+        <td>设备#{{ a.device_id }}</td><td style="max-width:300px;font-size:12px">{{ (a.reason||'').slice(0,80) }}</td>
+        <td>¥{{ (a.predicted_loss||0).toLocaleString() }}</td><td>{{ a.status }}</td>
         <td><button class="btn-xs" @click="showDetail(a)">详情</button></td>
       </tr></tbody></table></div>
   </main></div></div>
 </template>
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { alertAPI } from '../api/request'
 const router = useRouter()
 const username = ref(JSON.parse(localStorage.getItem('user_info')||'{}').username||'admin')
-const alerts = ref([
-  { id:1,time:'2026-07-15 08:15',level:'orange',device:'高温过热器入口段',reason:'HCl浓度连续48h超出基线30%，腐蚀速率加速至0.35mm/年',conf:85.2,status:'已确认'},
-  { id:2,time:'2026-07-14 22:30',level:'yellow',device:'引风机',reason:'振动幅度超出正常范围15%',conf:62.1,status:'已关闭'},
-  { id:3,time:'2026-07-13 14:00',level:'red',device:'高温过热器入口段',reason:'壁厚逼近最小允许值3.2mm，建议立即停炉',conf:96.7,status:'已处理'},
-])
-function showDetail(a) { alert(`设备: ${a.device}\n原因: ${a.reason}\nAI置信度: ${a.conf}%`) }
+const alerts = ref([])
+
+onMounted(async () => { try { const r = await alertAPI.history(); alerts.value = r.data } catch(_){} })
+function showDetail(a) { alert(`设备ID: ${a.device_id}\n原因: ${a.reason}\n状态: ${a.status}`) }
 function logout() { localStorage.clear(); router.push('/login') }
 </script>
 <style scoped>
