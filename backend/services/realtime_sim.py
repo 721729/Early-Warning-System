@@ -12,12 +12,13 @@ class Simulation:
         self.a_start = 2880; self.a_spike = 2890
 
     def _hcl(self, h):
-        if self.a_start <= h: return 1800  # 异常段: 固定高HCl
-        return 1000                       # 正常段: 固定正常HCl
+        if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 1900)
+        elif self.a_start <= h < self.a_start + 336: return np.random.uniform(1550, 1800)
+        return 1000 + np.random.randn() * 80
 
     def _temp(self, h):
-        if self.a_start <= h: return 560  # 异常段: 固定偏低炉温
-        return 575                        # 正常段
+        b = 555 if (self.a_spike <= h < self.a_spike + 2) else 565 if (self.a_start <= h < self.a_start + 336) else 575
+        return b + np.random.randn() * 8
 
     def advance_to(self, target):
         if target <= self.hours: return
