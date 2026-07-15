@@ -66,7 +66,9 @@ async def overview(
             "corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall, 2),  # 持久仿真实例的累计壁厚
             "sim_hours":_sim.hours,
-            "rul_days":max((_sim.wall-3.0)/max(np.mean([x["r"] for x in hist[-48:]] or [0.01]),1e-8)*365,1),
+            "rul_days":max((_sim.wall-3.0)/
+                max(np.mean([x["r"] for x in hist[-48:]] or [0.01]),
+                    np.mean([x["r"] for x in hist[-200:]] or [0.01]))*365,1),
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
         result[0].update({"health":"yellow" if last["r"]>.3 else "green",
