@@ -9,6 +9,7 @@
           <button class="btn-time" @click="toggleAuto">{{ autoMode ? '⏸ 暂停' : '▶ 自动推进' }}</button>
           <button class="btn-time" @click="resetSim">🔄 重置</button>
           <button class="btn-time" @click="jumpToAnomaly">⏩ 快进到异常</button>
+          <button class="btn-time" @click="jumpToDanger">🔴 危险工况</button>
           <span style="font-size:10px;color:#546e7a">{{ runDays }}h</span>
         </span>
         <span class="time">{{ now }}</span>
@@ -150,12 +151,23 @@ async function autoAdvance() {
   } catch(e) { console.warn('[绿电哨兵]', e.message) }
 }
 
-// 跳转到异常时段（重置后正确到达异常起点）
+// 跳转到异常时段
 async function jumpToAnomaly() {
   autoMode.value = false
   try {
-    await request.get('/health/overview', { params: { reset: true } })  // 先重置
-    const r = await request.get('/health/overview', { params: { advance: 2880 } }) // 跳到异常段
+    await request.get('/health/overview', { params: { reset: true } })
+    const r = await request.get('/health/overview', { params: { advance: 2880 } })
+    if (r.data?.length) updateDashboard(r.data)
+  } catch(e) {}
+}
+
+// 跳转到危险工况（壁厚逼近3.0mm红线）
+async function jumpToDanger() {
+  autoMode.value = false
+  try {
+    await request.get('/health/overview', { params: { reset: true } })
+    // 推进到约500天——在高腐蚀率下壁厚逼近危险线
+    const r = await request.get('/health/overview', { params: { advance: 12000 } })
     if (r.data?.length) updateDashboard(r.data)
   } catch(e) {}
 }
