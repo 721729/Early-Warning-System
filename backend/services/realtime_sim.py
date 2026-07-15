@@ -10,6 +10,9 @@ class Simulation:
     def __init__(self):
         self.hours = 0; self.wall = 6.0; self.history = []
         self.a_start = 2880; self.a_spike = 2890
+        # Demo加速: 使用更高的A参数使腐蚀可见（真实A=55, Demo A=500）
+        self.A_demo = 500.0
+        self.Ea = _params.Ea; self.R = _params.R; self.m = _params.m; self.n = _params.n
 
     def _hcl(self, h):
         if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 1900)
@@ -28,7 +31,7 @@ class Simulation:
         hcl_arr = np.array([self._hcl(h) for h in hours_arr])
         temp_arr = np.array([self._temp(h) for h in hours_arr])
         tk_arr = temp_arr + 273.15
-        rate_arr = _params.A * np.exp(-_params.Ea/(_params.R*tk_arr)) * (np.clip(hcl_arr,1,None)**_params.m) * (300**_params.n)
+        rate_arr = self.A_demo * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
         wall_arr = self.wall - np.cumsum(rate_arr / (365*24))
         for i in range(n):
             self.history.append({"h": int(hours_arr[i]), "w": round(float(wall_arr[i]),3),
