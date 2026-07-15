@@ -131,7 +131,7 @@
 import { ref, reactive, onMounted, onUnmounted, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import request, { notifyAPI, healthAPI, maintenanceAPI } from '../api/request'
+import request, { notifyAPI, healthAPI, maintenanceAPI, alertAPI } from '../api/request'
 
 const router = useRouter()
 const username = ref('admin')
@@ -139,7 +139,16 @@ const now = ref('')
 const runDays = ref(195)
 const timeOffset = ref(0)
 
-function shiftTime(offset) { timeOffset.value = offset; pollAI() }
+async function shiftTime(offset) {
+  timeOffset.value = offset
+  await pollAI()
+  // 同时刷新预警历史
+  try { const r = await alertAPI.active(); mockAlerts.value = r.data } catch(_) {}
+  if (!mockAlerts.value.length) {
+    try { const r = await alertAPI.history(); if (r.data.length) mockAlerts.value = [r.data[0]] } catch(_) {}
+  }
+  activeAlerts.value = mockAlerts.value.length
+}
 const notices = ref([])
 const showNotices = ref(false)
 const newNotice = ref('')
