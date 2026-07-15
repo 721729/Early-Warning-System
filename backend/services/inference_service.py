@@ -66,7 +66,9 @@ def predict(window_48h: np.ndarray) -> dict:
 
     params = MATERIAL_PARAMS['T22']
     raw = window_48h[-1]
-    hcl_raw = max(float(raw[1]), 1); temp_k = float(raw[0]) + 273.15
+    hcl_raw = max(float(raw[1]), 1)
+    temp_raw = float(raw[0])
+    temp_k = temp_raw + 273.15
     rate = (params.A * np.exp(-params.Ea / (params.R * temp_k))
             * (hcl_raw ** params.m) * (300 ** params.n))
 

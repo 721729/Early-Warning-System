@@ -1,14 +1,29 @@
-"""设备健康度接口 —— Demo阶段返回Demo数据, Pilot阶段接InfluxDB"""
+"""设备健康度 & AI推理接口"""
 from fastapi import APIRouter, Depends, Query
 from typing import List
+import numpy as np
+import pandas as pd
+from pathlib import Path
+
 from backend.middleware.auth import require_role
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
-# Demo阶段: 模型加载为可选项, 失败不影响API返回Demo数据
+# ---- AI 模型加载 (启动时尝试) ----
 _MODEL_READY = False
+_predict_fn = None
 
-# Demo设备列表 (Pilot阶段接MySQL equipment表)
+try:
+    from backend.services.inference_service import load_model as _load_ml, predict as _ml_predict
+    _load_ml()
+    _predict_fn = _ml_predict
+    _MODEL_READY = True
+    print("[AI] PatchTST 模型加载成功")
+except Exception as e:
+    print(f"[AI] 模型未加载(将使用Demo数据): {e}")
+
+
+# ---- 设备列表 ----
 _DEVICES = [
     {"id": 1, "name": "高温过热器入口段第1排", "type": "过热器",
      "health": "orange", "wall_thickness": 5.1, "original": 6.0,
@@ -31,12 +46,43 @@ _DEVICES = [
 ]
 
 
+@router.get("/ai-status")
+async def ai_status():
+    """前端检查AI是否在线"""
+    return {"ai_ready": _MODEL_READY, "model": "PatchTST (GitHub)", "params": 473907}
+
+
 @router.get("/overview")
 async def get_overview(
     plant_id: int = Query(1),
     user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ) -> List[dict]:
-    return _DEVICES
+    """设备列表 + AI推理结果(如果模型已加载)"""
+    result = [dict(d) for d in _DEVICES]
+
+    if _MODEL_READY and _predict_fn:
+        try:
+            # 取仿真数据最后48小时喂给AI
+            csv_path = Path(__file__).parent.parent.parent / "ml" / "simulation_data.csv"
+            df = pd.read_csv(csv_path)
+            cols = [c for c in df.columns if c not in
+                    ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
+            X = df[cols].values[::60].astype(np.float32)  # 小时级
+            window = X[-48:]  # 最后48小时
+            pred = _predict_fn(window)
+
+            # 用AI结果更新第一个设备
+            result[0]["health"] = pred["alert_level"]
+            result[0]["corrosion_rate"] = pred["corrosion_rate"]
+            result[0]["rul_days"] = pred["rul_days"]
+            result[0]["ai_anomaly_score"] = pred["anomaly_score"]
+            result[0]["ai_reconstruction_error"] = pred["reconstruction_error"]
+            result[0]["hcl_conc"] = pred.get("hcl_conc", 0)
+            result[0]["flue_temp"] = pred.get("flue_temp", 0)
+        except Exception as e:
+            print(f"[AI] 推理失败: {e}")
+
+    return result
 
 
 @router.get("/device/{device_id}")
@@ -48,7 +94,6 @@ async def get_device_detail(
     dev = next((d for d in _DEVICES if d["id"] == device_id), None)
     if not dev:
         return {"error": "设备不存在"}
-    # 生成壁厚历史趋势 (模拟)
     import random
     random.seed(device_id)
     history = []
@@ -57,3 +102,20 @@ async def get_device_detail(
         wall -= dev["corrosion_rate"] / 365 + random.uniform(-0.001, 0.003)
         history.append({"day": i + 1, "wall_thickness": round(max(wall, 0.1), 2)})
     return {**dev, "history": history}
+
+
+@router.post("/ai/predict")
+async def ai_predict_endpoint(
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
+) -> dict:
+    """手动触发AI推理 —— 返回最新预测结果"""
+    if not _MODEL_READY or not _predict_fn:
+        return {"error": "AI模型未加载, 请确保已运行 ml/train.py"}
+
+    csv_path = Path(__file__).parent.parent.parent / "ml" / "simulation_data.csv"
+    df = pd.read_csv(csv_path)
+    cols = [c for c in df.columns if c not in
+            ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
+    X = df[cols].values[::60].astype(np.float32)
+    window = X[-48:]
+    return _predict_fn(window)
