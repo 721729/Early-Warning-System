@@ -69,36 +69,87 @@ async def get_advice(
     hcl = float(hcl_match.group(1)) if hcl_match else 1000
     wall = float(wall_match.group(1)) if wall_match else 5.9
 
-    # 动态建议
-    if rate > 0.40:
-        action = f"⚠ 腐蚀速率{rate:.2f}mm/年严重超标。建议: 1.立即安排3天内计划停炉检查 2.重点检查高温过热器入口段第1-3排管子 3.准备T22管材替换"
-        urgency = "紧急"
-    elif rate > 0.30:
-        action = f"⚡ 腐蚀速率{rate:.2f}mm/年偏高。建议: 1.增加SNCR喷氨量抑制HCl 2.加强入炉垃圾分拣 3.一周内安排巡检"
-        urgency = "关注"
+    # ── 交叉分析：腐蚀速率 × HCl × 壁厚 × 多参数 ──
+    wall_pct = (wall - 3.0) / 3.0 * 100  # 壁厚剩余百分比
+    rate_level = "严重" if rate > 3.0 else "偏高" if rate > 1.5 else "正常"
+    hcl_level = "严重超标" if hcl > 1800 else "偏高" if hcl > 1500 else "正常"
+    wall_level = "危险" if wall_pct < 50 else "预警" if wall_pct < 75 else "安全"
+
+    # 根因分析: 根据HCl和腐蚀速率的组合判断
+    if hcl > 1500 and rate > 1.5:
+        root = (f"HCl浓度{hcl:.0f}mg/m³（{hcl_level}）与腐蚀速率{rate:.2f}mm/年（{rate_level}）"
+                f"同时异常，高氯腐蚀正在加速管壁减薄。入炉垃圾含氯塑料比例偏高是主因，"
+                f"炉膛温度处于HCl高温腐蚀活跃区间（500-650°C），"
+                f"加剧了腐蚀进程。壁厚剩余{wall_pct:.0f}%（{wall_level}）。")
+    elif hcl > 1500:
+        root = (f"HCl浓度{hcl:.0f}mg/m³（{hcl_level}），但腐蚀速率{rate:.2f}mm/年尚在可控范围。"
+                f"建议在腐蚀加速前采取预防措施，避免进入高氯-高温耦合腐蚀阶段。")
+    elif rate > 1.5:
+        root = (f"腐蚀速率{rate:.2f}mm/年（{rate_level}），HCl浓度{hcl:.0f}mg/m³正常。"
+                f"腐蚀加速可能由其他因素驱动（管材老化、局部过热），建议停炉时取样做金相分析。")
     else:
-        action = f"✓ 腐蚀速率{rate:.2f}mm/年在正常范围。建议: 1.保持常规巡检 2.关注HCl浓度变化趋势"
-        urgency = "正常"
+        root = (f"HCl浓度{hcl:.0f}mg/m³（{hcl_level}），腐蚀速率{rate:.2f}mm/年（{rate_level}），"
+                f"壁厚剩余{wall_pct:.0f}%（{wall_level}）。当前工况整体正常。")
+
+    # 处理方案: 根据三个维度交叉生成
+    actions = []
+    if rate > 3.0:
+        actions.append(f"🚨 紧急：腐蚀速率{rate:.2f}mm/年严重超标，建议3天内安排计划停炉")
+        actions.append("重点检查高温过热器入口段第1-3排管子，准备T22管材替换")
+    elif rate > 1.5:
+        actions.append(f"⚠️ 腐蚀速率{rate:.2f}mm/年偏高，建议一周内安排巡检")
+        actions.append("增加SNCR喷氨量至正常值1.3倍以抑制烟气HCl浓度")
+    else:
+        actions.append(f"腐蚀速率{rate:.2f}mm/年正常，保持常规巡检周期")
 
     if hcl > 1500:
-        hcl_advice = f"HCl浓度{hcl:.0f}mg/m³偏高(正常800-1200)，疑似入炉垃圾含氯塑料过多，建议检查前端分拣"
-    else:
-        hcl_advice = f"HCl浓度{hcl:.0f}mg/m³在正常范围"
+        actions.append("检查入炉垃圾前端分拣质量，重点排查含氯塑料混入比例")
+    if wall_pct < 60:
+        actions.append(f"壁厚仅剩{wall_pct:.0f}%，提前采购备件并规划下月停炉窗口")
+    if mse > 0.0005:
+        actions.append("AI重建误差显著升高——多参数关联模式已偏离正常，即使单参数未超标也应关注")
 
-    # 库存检查
-    stock = check_stock("T22管材", 150) if rate > 0.30 else {"status":"无需","detail":""}
-    schedule = "建议7天内安排停炉检修，可合并本月计划检修窗口，减少一次额外停炉" if rate > 0.30 else ""
+    action = "。".join(actions) + "。"
+
+    # 备件建议
+    if rate > 1.5:
+        parts = f"T22管材 φ51×5mm ×200m, 弯头×4, 焊接材料1套（壁厚剩余{wall_pct:.0f}%）"
+    else:
+        parts = "无需备件"
+
+    # 排程建议
+    if rate > 3.0:
+        schedule = "建议3天内停炉，本次可合并执行月度计划检修，减少一次额外停炉损失"
+    elif rate > 1.5:
+        schedule = f"建议7-14天内安排停炉检查，壁厚剩余{wall_pct:.0f}%尚有安全裕度"
+    else:
+        schedule = ""
+
+    # 历史案例
+    if hcl > 1500 and rate > 1.5:
+        cases = ("2024年8月新沂项目：HCl偏高持续10天后爆管，停炉11天，损失约280万元。"
+                 "本次HCl浓度与腐蚀速率组合与新沂案例相似，建议重视。")
+    elif hcl > 1500:
+        cases = "2024年8月新沂项目类似HCl偏高工况，通过调整垃圾分拣和增加喷氨控制了腐蚀。"
+    else:
+        cases = "暂无高度相似案例"
+
+    stock = check_stock("T22管材", 150) if rate > 1.5 else {"status":"无需","detail":""}
 
     return {
         "alert_id": alert_id, "work_order_id": wo.id if wo else None,
-        "alert_level": alert.alert_level, "urgency": urgency,
-        "phenomenon": f"AI检测: MSE={mse:.4f}，腐蚀速率{rate:.2f}mm/年，HCl={hcl:.0f}mg/m³，壁厚预测{wall:.2f}mm",
-        "root_cause": f"{hcl_advice}。AI异常得分上升表明多参数关联模式偏离正常工况。",
+        "alert_level": alert.alert_level,
+        "urgency": "紧急" if rate > 3.0 else "关注" if rate > 1.5 else "正常",
+        "phenomenon": (f"AI检测异常: 重建MSE={mse:.4f}（阈值2.08×10⁻⁴），"
+                       f"腐蚀速率{rate:.2f}mm/年（{rate_level}），"
+                       f"HCl={hcl:.0f}mg/m³（{hcl_level}），"
+                       f"壁厚预测{wall:.2f}mm（剩余{wall_pct:.0f}%）"),
+        "root_cause": root,
         "action_plan": action,
-        "spare_parts": "T22管材 φ51×5mm ×200m, 弯头×4, 焊接材料1套" if rate > 0.30 else "无需备件",
+        "spare_parts": parts,
         "stock_check": stock["detail"],
         "scheduling": schedule,
-        "similar_cases": "2024年8月新沂项目类似HCl偏高工况，停炉11天，损失约280万元" if hcl > 1500 else "暂无相似案例",
+        "similar_cases": cases,
         "status": wo.status if wo else "pending",
     }
 
