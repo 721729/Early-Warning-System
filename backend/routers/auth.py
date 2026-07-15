@@ -40,7 +40,7 @@ async def login(req: LoginRequest, db: Session = Depends(get_db)):
     access_payload = {
         "user_id": user.id,
         "username": user.username,
-        "role": user.role.value if hasattr(user.role, "value") else user.role,
+        "role": str(user.role),
         "exp": now + timedelta(minutes=settings.access_token_expire_minutes),
         "iat": now,
     }

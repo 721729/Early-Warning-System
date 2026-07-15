@@ -79,4 +79,4 @@ CREATE TABLE IF NOT EXISTS audit_log (
 
 -- 默认管理员账号: admin / admin123 (bcrypt hash)
 INSERT INTO `user` (username, password_hash, role, real_name) VALUES
-('admin', '$2b$12$LJ3m4ys3Lk0TSwHCpNqr5OKfFh0qIBnLGJqFhqKjtTqGznkQqGZwe', '管理员', '系统管理员');
+('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', '管理员', '系统管理员');

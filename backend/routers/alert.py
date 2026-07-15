@@ -27,7 +27,7 @@ _MOCK_ALERTS = [
 @router.get("/active")
 async def get_active_alerts(
     plant_id: int = Query(1),
-    user: dict = Depends(require_role(["值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ):
     return _MOCK_ALERTS
 
@@ -36,7 +36,7 @@ async def get_active_alerts(
 async def confirm_alert(
     alert_id: int,
     body: AlertConfirm,
-    user: dict = Depends(require_role(["检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"]))
 ):
     for a in _MOCK_ALERTS:
         if a["id"] == alert_id:
@@ -50,6 +50,6 @@ async def get_history(
     plant_id: int = Query(1),
     start: str = Query("2026-06-01"),
     end: str = Query("2026-07-01"),
-    user: dict = Depends(require_role(["值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ):
     return _MOCK_ALERTS

@@ -1,19 +1,12 @@
-"""设备健康度接口 —— Demo阶段调用推理服务, Pilot阶段接InfluxDB"""
+"""设备健康度接口 —— Demo阶段返回Demo数据, Pilot阶段接InfluxDB"""
 from fastapi import APIRouter, Depends, Query
 from typing import List
 from backend.middleware.auth import require_role
-from backend.services.inference_service import predict as model_predict, load_model
-import numpy as np
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
-# 启动时加载模型
-try:
-    load_model()
-    _MODEL_READY = True
-except Exception as e:
-    print(f"[WARN] 模型加载失败: {e}, 将使用Demo数据")
-    _MODEL_READY = False
+# Demo阶段: 模型加载为可选项, 失败不影响API返回Demo数据
+_MODEL_READY = False
 
 # Demo设备列表 (Pilot阶段接MySQL equipment表)
 _DEVICES = [
@@ -41,32 +34,16 @@ _DEVICES = [
 @router.get("/overview")
 async def get_overview(
     plant_id: int = Query(1),
-    user: dict = Depends(require_role(["值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ) -> List[dict]:
-    # Demo: 返回设备列表 + 如果有模型则附加推理结果
-    result = _DEVICES
-    if _MODEL_READY:
-        # 对第一个设备做推理演示
-        import pandas as pd
-        from pathlib import Path
-        df = pd.read_csv(Path(__file__).parent.parent.parent / "ml/simulation_data.csv")
-        cols = [c for c in df.columns if c not in
-                ('timestamp', '管壁超声厚度', '实际壁厚', '实际腐蚀速率', '标签')]
-        X = df[cols].values[::60].astype(np.float32)
-        window = X[-48:]  # 最后48小时
-        pred = model_predict(window)
-        # 用推理结果更新第一个设备的健康度
-        result[0]["health"] = pred["alert_level"]
-        result[0]["corrosion_rate"] = pred["corrosion_rate"]
-        result[0]["rul_days"] = pred["rul_days"]
-    return result
+    return _DEVICES
 
 
 @router.get("/device/{device_id}")
 async def get_device_detail(
     device_id: int,
     time_range: str = Query("7d"),
-    user: dict = Depends(require_role(["值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ) -> dict:
     dev = next((d for d in _DEVICES if d["id"] == device_id), None)
     if not dev:

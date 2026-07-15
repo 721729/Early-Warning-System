@@ -13,7 +13,7 @@ class AutoCreateWO(BaseModel):
 @router.get("/advice/{alert_id}")
 async def get_advice(
     alert_id: int,
-    user: dict = Depends(require_role(["值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
 ):
     return {
         "alert_id": alert_id,
@@ -33,7 +33,7 @@ async def get_advice(
 @router.post("/workorder/auto_create")
 async def auto_create_workorder(
     body: AutoCreateWO,
-    user: dict = Depends(require_role(["检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"]))
 ):
     return {
         "work_order_id": 2026001,

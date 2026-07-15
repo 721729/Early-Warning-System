@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     refresh_token_expire_minutes: int = 480  # 8小时
 
     # Database
-    database_url: str = "mysql+pymysql://gps_user:gps_pass@localhost:3306/green_power_sentinel"
+    database_url: str = "mysql+pymysql://gps_user:gps_pass@localhost:3306/green_power_sentinel?charset=utf8mb4"
 
     # InfluxDB
     influx_url: str = "http://localhost:8086"
@@ -20,8 +20,7 @@ class Settings(BaseSettings):
     # Redis
     redis_url: str = "redis://:redis123@localhost:6379/0"
 
-    class Config:
-        env_file = ".env"
+    model_config = {"env_file": ".env", "extra": "ignore"}
 
 
 settings = Settings()

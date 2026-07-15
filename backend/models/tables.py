@@ -38,7 +38,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(32), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
-    role = Column(SAEnum(UserRole), nullable=False)
+    role = Column(String(16), nullable=False)   # 值长/检修班长/厂长/管理员
     plant_id = Column(Integer, default=None)
     real_name = Column(String(32), default="")
     is_active = Column(Boolean, default=True)
