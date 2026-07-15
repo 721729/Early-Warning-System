@@ -77,6 +77,10 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_user_time (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 默认管理员账号 (bcrypt hash of 'admin123')
+INSERT INTO user (username, password_hash, role, real_name) VALUES
+('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', 'admin', 'System Admin');
+
 -- 默认管理员账号: admin / admin123 (bcrypt hash)
 INSERT INTO `user` (username, password_hash, role, real_name) VALUES
 ('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', '管理员', '系统管理员');

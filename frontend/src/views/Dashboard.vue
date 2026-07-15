@@ -5,7 +5,7 @@
       <h1>⚡ 绿电哨兵 · 焚烧炉设备健康度</h1>
       <div class="user-area">
         <span class="plant">新沂项目 #1炉</span>
-        <span class="role">{{ user.role }} | {{ user.real_name || user.username }}</span>
+        <span class="role">{{ user.username }}</span>
         <button class="btn-logout" @click="handleLogout">退出</button>
       </div>
     </header>
