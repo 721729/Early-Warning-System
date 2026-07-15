@@ -41,9 +41,25 @@ class Simulation:
         if self.hours < sz: self.advance_to(sz)
         rec = self.history[-sz:]
         w = np.zeros((sz, 15), dtype=np.float32)
+        in_anomaly = self.hours >= self.a_start
         for i, r in enumerate(rec):
-            t = r["t"]; w[i,0]=t; w[i,1]=r["hcl"]; w[i,2]=r["hcl"]*.2
-            w[i,3]=50+np.random.randn()*5; w[i,4]=8+np.random.randn()*.3; w[i,5]=20+np.random.randn()*2
-            w[i,6]=t-90; w[i,7]=t-110; w[i,8]=t-140; w[i,9]=t-15; w[i,10]=t-30; w[i,11]=t-60
-            w[i,12]=40+np.random.randn(); w[i,13]=4.0+np.random.randn()*.05; w[i,14]=400+np.random.randn()
+            t = r["t"]; hcl = r["hcl"]
+            if in_anomaly:
+                # 异常段: 参数关系改变——O2与温度脱钩, 壁温异常波动, 蒸汽不稳
+                w[i,0]=t+np.random.randn()*5; w[i,1]=hcl; w[i,2]=hcl*.2
+                w[i,3]=60+np.random.randn()*8     # CO偏高
+                w[i,4]=6+np.random.randn()*.8     # O2偏低且与温度脱钩
+                w[i,5]=25+np.random.randn()*4     # 颗粒物偏高
+                w[i,6]=t-80+np.random.randn()*8   # 壁温大幅波动
+                w[i,7]=t-100+np.random.randn()*8
+                w[i,8]=t-130+np.random.randn()*8
+                w[i,9]=t-10; w[i,10]=t-25; w[i,11]=t-55
+                w[i,12]=38+np.random.randn()*2    # 蒸汽流量偏低
+                w[i,13]=3.7+np.random.randn()*.15 # 蒸汽压力偏低
+                w[i,14]=390+np.random.randn()*8   # 蒸汽温度偏低
+            else:
+                w[i,0]=t; w[i,1]=hcl; w[i,2]=hcl*.2
+                w[i,3]=50+np.random.randn()*5; w[i,4]=8+np.random.randn()*.3; w[i,5]=20+np.random.randn()*2
+                w[i,6]=t-90; w[i,7]=t-110; w[i,8]=t-140; w[i,9]=t-15; w[i,10]=t-30; w[i,11]=t-60
+                w[i,12]=40+np.random.randn(); w[i,13]=4.0+np.random.randn()*.05; w[i,14]=400+np.random.randn()
         return w, rec

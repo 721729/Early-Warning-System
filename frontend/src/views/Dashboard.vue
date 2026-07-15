@@ -209,9 +209,9 @@ let pollTimer = null
 // 每5秒从后端拉取AI推理的真实设备数据
 async function pollAI() {
   try {
-    const { healthAPI } = await import('../api/request')
     const r = await request.get('/health/overview', { params: { plant_id: 1, time_offset: timeOffset.value } })
     const devs = r.data
+    console.log('pollAI response:', devs[0]?.health, 'offset:', timeOffset.value)
     if (!devs || !devs.length) return
 
     // 设备1: 高温过热器入口段 (主监控对象)
