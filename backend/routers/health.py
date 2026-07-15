@@ -62,7 +62,7 @@ async def overview(
             "ai_anomaly_score":pred["anomaly_score"],
             "ai_reconstruction_error":pred["reconstruction_error"],
             "corrosion_rate":last["r"],
-            "wall_thickness_ai":round(_sim.wall, 2),  // 持久仿真实例的累计壁厚
+            "wall_thickness_ai":round(_sim.wall, 2),  # 持久仿真实例的累计壁厚
             "sim_hours":_sim.hours,
             "rul_days":max((_sim.wall-3.0)/max(last["r"],1e-8)*365,1),
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
