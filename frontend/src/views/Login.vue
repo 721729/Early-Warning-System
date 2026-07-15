@@ -1,113 +1,55 @@
 <template>
-  <div class="login-wrapper">
-    <div class="login-box">
-      <h1>⚡ 绿电哨兵</h1>
-      <p class="subtitle">焚烧炉设备健康度监测平台</p>
-      <form @submit.prevent="handleLogin" autocomplete="off">
-        <!-- 隐藏的假输入框，欺骗浏览器密码管理器把自动填充写入这里 -->
+  <div class="wrap">
+    <div class="box">
+      <div class="icon">⚡</div>
+      <h1>绿电哨兵</h1>
+      <p>焚烧炉设备健康度监测平台</p>
+      <form @submit.prevent="login" autocomplete="off">
         <input type="text" name="fakeuser" style="display:none" />
         <input type="password" name="fakepass" style="display:none" />
-        <div class="field">
-          <label>工号</label>
-          <input v-model="form.username" type="text" placeholder="输入工号" name="uid" autocomplete="new-password" />
-        </div>
-        <div class="field">
-          <label>密码</label>
-          <input v-model="form.password" type="password" placeholder="输入密码" name="pwd" autocomplete="new-password" />
-        </div>
-        <p v-if="error" class="error">{{ error }}</p>
-        <button type="submit" :disabled="loading">
-          {{ loading ? '登录中...' : '登 录' }}
-        </button>
+        <input v-model="f.username" type="text" placeholder="工号" name="uid" autocomplete="new-password" />
+        <input v-model="f.password" type="password" placeholder="密码" name="pwd" autocomplete="new-password" />
+        <p v-if="err" class="err">{{ err }}</p>
+        <button type="submit" :disabled="ld">{{ ld ? '登录中...' : '登 录' }}</button>
       </form>
-      <p class="footer">Demo 账号: admin / admin123</p>
+      <span class="hint">Demo: admin / admin123</span>
     </div>
   </div>
 </template>
-
 <script setup>
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { authAPI } from '../api/request'
-
-const router = useRouter()
-const form = reactive({ username: '', password: '' })
-
-// 每次页面加载清空表单（防止浏览器自动填充残留）
-onMounted(() => {
-  form.username = ''
-  form.password = ''
-})
-const loading = ref(false)
-const error = ref('')
-
-// -------- 输入清洗: 去除前后空格, 过滤特殊字符 --------
-function sanitize(str) {
-  return str.trim().replace(/[<>"';&]/g, '')
-}
-
-async function handleLogin() {
-  error.value = ''
-  const uname = sanitize(form.username)
-  const pwd = form.password   // 密码不过滤特殊字符
-
-  if (!uname || !pwd) {
-    error.value = '工号和密码不能为空'
-    return
-  }
-  if (uname.length > 32) {
-    error.value = '工号格式错误'
-    return
-  }
-
-  loading.value = true
+const r = useRouter()
+const f = reactive({ username: '', password: '' })
+const ld = ref(false), err = ref('')
+onMounted(() => { f.username = ''; f.password = '' })
+async function login() {
+  err.value = ''
+  if (!f.username.trim() || !f.password) { err.value = '工号和密码不能为空'; return }
+  ld.value = true
   try {
-    const res = await authAPI.login({ username: uname, password: pwd })
+    const res = await authAPI.login({ username: f.username.trim(), password: f.password })
     localStorage.setItem('access_token', res.data.access_token)
     localStorage.setItem('refresh_token', res.data.refresh_token)
     localStorage.setItem('user_info', JSON.stringify(res.data.user))
-    router.push('/')
+    r.push('/')
   } catch (e) {
-    if (e.response?.status === 401) {
-      error.value = '工号或密码错误'
-    } else if (e.response?.status === 429) {
-      error.value = '登录尝试过多，请稍后再试'
-    } else {
-      error.value = '服务器连接失败，请检查网络'
-    }
-  } finally {
-    loading.value = false
-  }
+    err.value = e.response?.status === 401 ? '工号或密码错误' : '服务器连接失败'
+  } finally { ld.value = false }
 }
 </script>
-
 <style scoped>
-.login-wrapper {
-  display: flex; align-items: center; justify-content: center;
-  min-height: 100vh; background: linear-gradient(135deg, #0f1923 0%, #1a2a3a 100%);
-}
-.login-box {
-  background: #1a2a3a; border-radius: 12px; padding: 40px;
-  width: 380px; max-width: 90vw;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
-}
-h1 { text-align: center; font-size: 26px; color: #4fc3f7; margin-bottom: 4px; }
-.subtitle { text-align: center; font-size: 13px; color: #78909c; margin-bottom: 28px; }
-.field { margin-bottom: 18px; }
-.field label { display: block; font-size: 13px; color: #b0bec5; margin-bottom: 6px; }
-.field input {
-  width: 100%; padding: 10px 14px; border-radius: 6px;
-  border: 1px solid #37474f; background: #253548; color: #e0e0e0;
-  font-size: 14px; outline: none; transition: border .2s;
-}
-.field input:focus { border-color: #4fc3f7; }
-.error { color: #ef5350; font-size: 13px; margin-bottom: 12px; }
-button {
-  width: 100%; padding: 12px; border: none; border-radius: 6px;
-  background: #1976d2; color: #fff; font-size: 15px; cursor: pointer;
-  transition: background .2s;
-}
-button:hover { background: #1565c0; }
-button:disabled { background: #37474f; cursor: not-allowed; }
-.footer { text-align: center; font-size: 12px; color: #546e7a; margin-top: 20px; }
+.wrap { display: flex; align-items: center; justify-content: center; min-height: 100vh; background: radial-gradient(ellipse at top, #0d1b2a 0%, #0a0e17 70%); }
+.box { background: rgba(17,24,39,.9); border: 1px solid #1e2d3d; border-radius: 16px; padding: 48px 40px; width: 380px; max-width: 90vw; text-align: center; backdrop-filter: blur(10px); }
+.icon { font-size: 48px; margin-bottom: 8px; }
+h1 { font-size: 26px; color: #00e5ff; font-weight: 700; letter-spacing: 2px; }
+p { font-size: 13px; color: #546e7a; margin: 6px 0 28px; }
+input { width: 100%; padding: 12px 16px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #1e2d3d; background: #0a0e17; color: #ccd6f6; font-size: 14px; outline: none; transition: border .2s; }
+input:focus { border-color: #00e5ff; }
+.err { color: #ff5252; font-size: 12px; margin-bottom: 8px; }
+button { width: 100%; padding: 12px; border: none; border-radius: 8px; background: linear-gradient(135deg, #00695c, #00838f); color: #fff; font-size: 15px; font-weight: 600; cursor: pointer; letter-spacing: 2px; transition: opacity .2s; }
+button:hover { opacity: .85; }
+button:disabled { opacity: .4; cursor: not-allowed; }
+.hint { font-size: 11px; color: #37474f; margin-top: 16px; display: block; }
 </style>

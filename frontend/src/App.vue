@@ -1,17 +1,8 @@
-<template>
-  <router-view />
-</template>
-
-<script setup>
-// App root — 路由决定渲染 Login 还是 Dashboard
-</script>
-
+<template><router-view /></template>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body {
-  font-family: "Microsoft YaHei", "PingFang SC", sans-serif;
-  background: #0f1923;
-  color: #e0e0e0;
-  min-height: 100vh;
-}
+body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0e17; color: #ccd6f6; }
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #0d1117; }
+::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 3px; }
 </style>
