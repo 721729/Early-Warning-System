@@ -154,6 +154,18 @@ async def update_alert_status(
     return {"msg": f"预警{alert_id}状态→{status}"}
 
 
+@router.delete("/all")
+async def delete_all_alerts(
+    user: dict = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """管理员一键清空所有预警"""
+    db.query(AlertLog).delete()
+    db.query(WorkOrder).delete()
+    db.commit()
+    return {"msg": "所有预警和工单已清空"}
+
+
 @router.get("/history")
 async def get_history(
     plant_id: int = Query(1),

@@ -3,7 +3,7 @@
   <div class="body">
   <nav class="side"><router-link to="/" class="nav-item">🏠 总览</router-link><router-link to="/alerts" class="nav-item active">⚠️ 预警记录</router-link><router-link to="/workorders" class="nav-item">📋 工单管理</router-link><router-link to="/ai" class="nav-item">🧠 AI分析</router-link><router-link to="/audit" class="nav-item">📋 审计日志</router-link><router-link to="/users" class="nav-item">👥 用户管理</router-link><a href="#" class="nav-item" @click.prevent="logout">🚪 退出</a></nav>
   <main class="main">
-    <h2 style="font-size:18px;color:#00e5ff;margin-bottom:16px">⚠️ 预警历史记录</h2>
+    <h2 style="font-size:18px;color:#00e5ff;margin-bottom:16px">⚠️ 预警历史记录 <button class="btn btn-del" style="margin-left:12px" @click="delAll">🗑 一键清空</button></h2>
     <div class="card"><table><thead><tr><th>时间</th><th>等级</th><th>原因</th><th>损失</th><th>状态</th><th>修复记录</th><th>操作</th></tr></thead><tbody>
       <tr v-for="a in alerts" :key="a.id">
         <td>{{ (a.alert_time||'').slice(0,16) }}</td>
@@ -40,6 +40,7 @@ async function load() { try { const r = await alertAPI.history(); alerts.value =
 async function saveEdit(a) { try { await alertAPI.edit(a.id,{reason:a._reason}); a.reason=a._reason; a._editing=false; load() } catch(_){} }
 async function saveRes(a) { try { await alertAPI.edit(a.id,{resolution:a._res}); a.resolution=a._res; load() } catch(_){} }
 async function chStatus(a,ev) { try { await alertAPI.updateStatus(a.id,ev.target.value); a.status=ev.target.value; load() } catch(_){} }
+async function delAll(){if(!confirm("确认删除所有预警和工单?"))return;try{await alertAPI.deleteAll();load()}catch(_){}}
 async function delAlert(id) { if(!confirm('确认删除?关联工单也会删除'))return; try{await alertAPI.delete(id);load()}catch(_){} }
 function logout() { localStorage.clear(); router.push('/login') }
 </script>

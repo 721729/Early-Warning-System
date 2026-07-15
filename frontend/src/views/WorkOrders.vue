@@ -3,7 +3,7 @@
   <div class="body">
   <nav class="side"><router-link to="/" class="nav-item">🏠 总览</router-link><router-link to="/alerts" class="nav-item">⚠️ 预警记录</router-link><router-link to="/workorders" class="nav-item active">📋 工单管理</router-link><router-link to="/ai" class="nav-item">🧠 AI分析</router-link><router-link to="/audit" class="nav-item">📋 审计日志</router-link><router-link to="/users" class="nav-item">👥 用户管理</router-link><a href="#" class="nav-item" @click.prevent="logout">🚪 退出</a></nav>
   <main class="main">
-    <h2 style="font-size:18px;color:#00e5ff;margin-bottom:16px">📋 工单管理</h2>
+    <h2 style="font-size:18px;color:#00e5ff;margin-bottom:16px">📋 工单管理 <button class="btn btn-del" style="margin-left:12px" @click="delAll">🗑 一键清空</button></h2>
     <div class="card"><table><thead><tr><th>#</th><th>关联预警</th><th>故障描述</th><th>处理方案</th><th>备件</th><th>维修人</th><th>状态</th><th>操作</th></tr></thead><tbody>
       <tr v-for="w in workorders" :key="w.id">
         <td style="color:#00e5ff">#{{ w.id }}</td>
@@ -41,6 +41,7 @@ function startEdit(w) { w._editing=true; w._fault=w.fault_desc; w._plan=w.action
 async function saveEdit(w) { try { await maintenanceAPI.editWO(w.id,{fault_desc:w._fault,action_plan:w._plan,spare_parts:w._parts}); w.fault_desc=w._fault; w.action_plan=w._plan; w.spare_parts=w._parts; w._editing=false; load() } catch(_){} }
 async function chStatus(w,ev) { try { await maintenanceAPI.editWO(w.id,{status:ev.target.value}); w.status=ev.target.value; load() } catch(_){} }
 async function saveAssignee(w) { try { await maintenanceAPI.editWO(w.id,{assignee:w._assignee}) } catch(_){} }
+async function delAll(){if(!confirm("确认删除所有工单?"))return;try{await maintenanceAPI.deleteAllWO();load()}catch(_){}}
 async function delWO(id) { if(!confirm('确认删除?'))return; try{await maintenanceAPI.deleteWO(id);load()}catch(_){} }
 function logout() { localStorage.clear(); router.push('/login') }
 </script>

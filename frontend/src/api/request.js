@@ -46,7 +46,8 @@ export const alertAPI = {
   history: (plantId = 1, start, end) => request.get('/alert/history', { params: { plant_id: plantId, start, end } }),
   edit: (alertId, data) => request.put(`/alert/${alertId}`, data),
   delete: (alertId) => request.delete(`/alert/${alertId}`),
-  updateStatus: (alertId, status) => request.put(`/alert/${alertId}/status`, null, { params: { status } })
+  updateStatus: (alertId, status) => request.put(`/alert/${alertId}/status`, null, { params: { status } }),
+  deleteAll: () => request.delete('/alert/all')
 }
 
 export const predictAPI = {
@@ -60,7 +61,8 @@ export const maintenanceAPI = {
   workorders: () => request.get('/maintenance/workorders'),
   autoCreateWO: (alertId) => request.post('/maintenance/workorder/auto_create', { alert_id: alertId }),
   editWO: (woId, data) => request.put(`/maintenance/workorders/${woId}`, data),
-  deleteWO: (woId) => request.delete(`/maintenance/workorders/${woId}`)
+  deleteWO: (woId) => request.delete(`/maintenance/workorders/${woId}`),
+  deleteAllWO: () => request.delete('/maintenance/workorders/all')
 }
 
 export const userAPI = {

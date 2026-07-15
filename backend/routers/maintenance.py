@@ -115,6 +115,17 @@ async def edit_workorder(
     return {"msg": f"工单#{wo_id}已更新", "status": wo.status}
 
 
+@router.delete("/workorders/all")
+async def delete_all_workorders(
+    user: dict = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """管理员一键清空所有工单"""
+    db.query(WorkOrder).delete()
+    db.commit()
+    return {"msg": "所有工单已清空"}
+
+
 @router.delete("/workorders/{wo_id}")
 async def delete_workorder(
     wo_id: int,
