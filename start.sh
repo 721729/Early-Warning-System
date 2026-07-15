@@ -23,25 +23,14 @@ for i in $(seq 1 30); do
   sleep 1
 done
 
-# 建表
-docker exec gps-mysql mysql -u root -proot123 green_power_sentinel -e "
-  CREATE TABLE IF NOT EXISTS user (
-    id INT PRIMARY KEY AUTO_INCREMENT,
-    username VARCHAR(32) NOT NULL UNIQUE,
-    password_hash VARCHAR(128) NOT NULL,
-    role VARCHAR(16) NOT NULL,
-    plant_id INT DEFAULT NULL,
-    real_name VARCHAR(32) DEFAULT '',
-    is_active BOOLEAN DEFAULT TRUE,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
-" 2>/dev/null
-
-docker exec gps-mysql mysql -u root -proot123 green_power_sentinel -e "
-  DELETE FROM user WHERE username='admin';
-  INSERT INTO user (username, password_hash, role, real_name) VALUES
-  ('admin', '\$2b\$12\$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', 'admin', '系统管理员');
-" 2>/dev/null
+# 首次启动时建表 + 插管理员，后续跳过
+TABLE_EXISTS=$(docker exec gps-mysql mysql -u root -proot123 green_power_sentinel -sN -e "SELECT COUNT(*) FROM information_schema.tables WHERE table_name='user';" 2>/dev/null)
+if [ "$TABLE_EXISTS" = "0" ] || [ -z "$TABLE_EXISTS" ]; then
+  echo "       首次启动, 初始化数据库..."
+  docker exec gps-mysql mysql -u root -proot123 green_power_sentinel < deploy/init.sql 2>/dev/null
+else
+  echo "       数据库已存在, 跳过初始化"
+fi
 
 echo "       Docker 就绪"
 
