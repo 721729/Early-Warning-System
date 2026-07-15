@@ -20,7 +20,6 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 | 后端 API | FastAPI + SQLAlchemy + Pydantic | JWT 认证 + RBAC + 审计日志 |
 | 数据库 | InfluxDB 2.7 / MySQL 8.0 / Redis 7 | Docker Compose 一键部署 |
 | Vue 前端 | Vue 3 + Vite + ECharts + Axios | 登录 → JWT → 设备树 → 健康度剖面图 → 预警面板 |
-| 可视化 | Canvas 纯前端 HTML + ECharts CDN | 无需后端, 浏览器直接打开 |
 
 **全部组件开源、兼容 Linux。**
 
@@ -74,13 +73,7 @@ python train.py             # → model_b_pure.pth, model_c_fusion.pth (各 1.8M
 python ablation.py          # → ablation_metrics.json（完整消融指标）
 ```
 
-### 4. 打开 Demo 看板
-
-```bash
-open ../canvas/incinerator.html    # 纯前端, 无需后端
-```
-
-### 5. 启动后端 API（需要 Docker）
+### 4. 启动后端 API（需要 Docker）
 
 ```bash
 docker-compose up -d        # 起 InfluxDB + MySQL + Redis
@@ -112,7 +105,6 @@ green-power-sentinel/
 │   ├── src/views/Dashboard.vue # 仪表盘 (设备树+剖面图+预警+趋势+运维弹窗)
 │   ├── src/router/index.js    # 路由守卫 (未登录→跳登录)
 │   └── src/api/request.js     # Axios (自动带JWT, 401跳登录)
-├── canvas/incinerator.html    # 纯前端可视化 Demo (ECharts, 浏览器打开即用)
 ├── docker-compose.yml         # InfluxDB + MySQL + Redis 一键部署
 ├── deploy/init.sql            # 建表 + 默认管理员 (admin/admin123)
 └── 技术报告.md                # 详细技术报告 v2.0
