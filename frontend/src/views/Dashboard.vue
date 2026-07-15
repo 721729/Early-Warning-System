@@ -7,7 +7,7 @@
         <span class="plant">新沂项目 #1炉 · 运行中</span>
         <span class="time">{{ now }}</span>
         <span class="user">{{ username }}</span>
-        <span class="dot-live"></span> 实时
+        <span class="dot-live"></span> 仿真Demo
       </div>
     </header>
 
@@ -49,7 +49,7 @@
             </div>
           </section>
           <section class="card live-data">
-            <h3>📡 实时传感器数据 <span class="live-tag">LIVE</span></h3>
+            <h3>📡 传感器数据 <span class="live-tag">仿真Demo · 阿伦尼乌斯方程驱动</span></h3>
             <div class="sensor-grid">
               <div class="sensor" v-for="s in sensors" :key="s.label">
                 <div class="sl">{{ s.label }}</div>
