@@ -78,6 +78,7 @@
             </div>
             <div class="health-legend">
               <span><i class="dot g"></i>健康 &gt;90%</span><span><i class="dot y"></i>关注 75-90%</span><span><i class="dot o"></i>预警 50-75%</span><span><i class="dot r"></i>危险 &lt;50%</span>
+              <span style="margin-left:8px;font-size:10px;color:#546e7a">壁厚健康度 | ⚡AI标签=AI检出异常</span>
             </div>
           </section>
           <section class="card live-data">
@@ -241,13 +242,17 @@ function updateDashboard(devs) {
     ai_score: safeGet(d1, 'ai_anomaly_score', 0.1),
   })
   if (d1.trend) window._trendData = d1.trend
-  const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
-  healthDevs.value = devs.slice(0, 6).map(d => ({
-    name: d.name, health: colorMap[d.health] || 'green',
-    pct: Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0))),
-    label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
-    rate: (d.corrosion_rate || 0.15).toFixed(2),
-  }))
+  healthDevs.value = devs.slice(0, 6).map(d => {
+    const pct = Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0)))
+    // 颜色跟壁厚百分比: >90绿, 75-90黄, 50-75橙, <50红
+    const hColor = pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red'
+    const aiTag = d.health === 'orange' ? ' ⚠AI' : d.health === 'yellow' ? ' ⚡AI' : ''
+    return {
+      name: d.name, health: hColor, pct,
+      label: (pct > 90 ? '✓' : pct > 75 ? '⚡' : pct > 50 ? '⚠' : '🔴') + aiTag,
+      rate: (d.corrosion_rate || 0.15).toFixed(2),
+    }
+  })
   const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
   const h = d1.health || 'green'
   const anomaly = h !== 'green'  // AI检测到异常时标记相关参数
