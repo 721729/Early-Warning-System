@@ -251,30 +251,32 @@ function updateDashboard(devs) {
   }))
   const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
   const h = d1.health || 'green'
+  const anomaly = h !== 'green'  // AI检测到异常时标记相关参数
   sensors.value = [
-    { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 },
-    { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 },
-    { label: 'SO₂ 浓度', value: ((d1.hcl_conc||1000)*0.2).toFixed(1), unit: 'mg/m³', warn: false },
-    { label: 'CO 浓度', value: (50+(Math.random()*10)).toFixed(1), unit: 'mg/m³', warn: false },
-    { label: 'O₂ 含量', value: (8+(Math.random()-0.5)).toFixed(1), unit: '%', warn: false },
-    { label: '颗粒物', value: (20+(Math.random()*4)).toFixed(1), unit: 'mg/m³', warn: false },
-    { label: '高过壁温', value: ((d1.flue_temp||570)-90+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
-    { label: '中过壁温', value: ((d1.flue_temp||570)-110+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
-    { label: '低过壁温', value: ((d1.flue_temp||570)-140+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
-    { label: '主蒸汽流量', value: (40+(Math.random()-0.5)*2).toFixed(1), unit: 't/h', warn: false },
-    { label: '主蒸汽压力', value: (4.0+(Math.random()-0.5)*0.1).toFixed(2), unit: 'MPa', warn: false },
-    { label: '主蒸汽温度', value: (400+(Math.random()-0.5)*5).toFixed(1), unit: '°C', warn: false },
-    { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: h !== 'green', isText: true },
-    { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 0.25 },
+    { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 || anomaly },
+    { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 || anomaly },
+    { label: 'SO₂ 浓度', value: ((d1.hcl_conc||1000)*0.2).toFixed(1), unit: 'mg/m³', warn: anomaly },
+    { label: 'CO 浓度', value: (anomaly ? 60 : 50).toFixed(1), unit: 'mg/m³', warn: anomaly },
+    { label: 'O₂ 含量', value: (anomaly ? 6.2 : 8.0).toFixed(1), unit: '%', warn: anomaly },
+    { label: '颗粒物', value: (anomaly ? 26 : 20).toFixed(1), unit: 'mg/m³', warn: anomaly },
+    { label: '高过壁温', value: ((d1.flue_temp||570)-90).toFixed(1), unit: '°C', warn: anomaly },
+    { label: '中过壁温', value: ((d1.flue_temp||570)-110).toFixed(1), unit: '°C', warn: anomaly },
+    { label: '低过壁温', value: ((d1.flue_temp||570)-140).toFixed(1), unit: '°C', warn: anomaly },
+    { label: '主蒸汽流量', value: (anomaly ? 38 : 40).toFixed(1), unit: 't/h', warn: anomaly },
+    { label: '主蒸汽压力', value: (anomaly ? 3.7 : 4.0).toFixed(2), unit: 'MPa', warn: anomaly },
+    { label: '主蒸汽温度', value: (anomaly ? 390 : 400).toFixed(1), unit: '°C', warn: anomaly },
+    { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: anomaly, isText: true },
+    { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 1.5 || anomaly },
     { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
-    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 100 },
+    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 500 },
   ]
+  // 预警卡片
   if (h !== 'green') {
     mockAlerts.value = [{
       id: Date.now(), level: h,
       title: h === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
       time: new Date().toLocaleTimeString('zh-CN'),
-      desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI得分${(d1.ai_anomaly_score||0).toFixed(2)}`,
+      desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI-MSE=${(d1.ai_reconstruction_error||0).toFixed(6)}`,
       loss: 420000, rul_days: (d1.rul_days||0).toFixed(0), confidence: 85
     }]
   } else { mockAlerts.value = [] }
