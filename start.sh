@@ -8,6 +8,56 @@ echo "========================================"
 echo "  绿电哨兵 — 一键启动"
 echo "========================================"
 
+# ---------- 0. 环境检查 ----------
+echo "[0/4] 检查运行环境..."
+MISSING=""
+
+# 检查 Docker
+if ! command -v docker &>/dev/null; then
+  MISSING="$MISSING docker"
+fi
+
+# 检查 Python 3.10+
+PY_OK=$(python3 -c "import sys; exit(0 if sys.version_info >= (3,10) else 1)" 2>/dev/null && echo "yes" || echo "no")
+if [ "$PY_OK" != "yes" ]; then
+  MISSING="$MISSING python3.10+"
+fi
+
+# 检查 Node.js 18+
+NODE_OK=$(node -e "process.exit(parseInt(process.version.slice(1)) >= 18 ? 0 : 1)" 2>/dev/null && echo "yes" || echo "no")
+if [ "$NODE_OK" != "yes" ]; then
+  MISSING="$MISSING node18+"
+fi
+
+if [ -n "$MISSING" ]; then
+  echo "       缺少: $MISSING"
+  echo ""
+  echo "   Ubuntu/Debian 安装命令:"
+  for m in $MISSING; do
+    case $m in
+      docker)    echo "     sudo apt install docker.io && sudo systemctl start docker" ;;
+      python3.10+) echo "     sudo apt install python3 python3-pip python3-venv" ;;
+      node18+)   echo "     curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install nodejs" ;;
+    esac
+  done
+  echo ""
+  read -p "  是否自动安装? (y/n) " -n 1 -r
+  echo
+  if [[ $REPLY =~ ^[Yy]$ ]]; then
+    sudo apt update -qq
+    for m in $MISSING; do
+      case $m in
+        docker)    sudo apt install -y docker.io && sudo systemctl start docker ;;
+        python3.10+) sudo apt install -y python3 python3-pip python3-venv ;;
+        node18+)   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs ;;
+      esac
+    done
+  else
+    echo "       请手动安装后再运行 start.sh"; exit 1
+  fi
+fi
+echo "       环境就绪 (Docker $(docker --version 2>/dev/null | cut -d' ' -f3 | cut -d'.' -f1), Python $(python3 --version 2>/dev/null | cut -d' ' -f2), Node $(node --version 2>/dev/null | cut -d'v' -f2))"
+
 # ---------- 1. Docker ----------
 echo "[1/4] 启动 Docker 数据库..."
 docker compose up -d 2>/dev/null || echo "       Docker未启动"
