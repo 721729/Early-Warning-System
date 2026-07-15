@@ -16,6 +16,10 @@ class AlertConfirm(BaseModel):
     confirm_by: str
     action: str
 
+class AlertEdit(BaseModel):
+    reason: str | None = None
+    resolution: str | None = None
+
 class AutoAlertReq(BaseModel):
     device_id: int = 1
     device_name: str = "高温过热器入口段"
@@ -103,6 +107,51 @@ async def confirm_alert(
     alert.confirm_time = datetime.now()
     db.commit()
     return {"msg": f"预警{alert_id}已确认"}
+
+
+@router.put("/{alert_id}")
+async def edit_alert(
+    alert_id: int, body: AlertEdit,
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    db: Session = Depends(get_db)
+):
+    """编辑预警: 修改原因说明/处理记录"""
+    a = db.query(AlertLog).filter(AlertLog.id == alert_id).first()
+    if not a: return {"error": "预警不存在"}
+    if body.reason is not None: a.reason = body.reason
+    if body.resolution is not None: a.resolution = body.resolution
+    db.commit()
+    return {"msg": f"预警{alert_id}已更新"}
+
+
+@router.delete("/{alert_id}")
+async def delete_alert(
+    alert_id: int,
+    user: dict = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    """管理员删除预警"""
+    db.query(AlertLog).filter(AlertLog.id == alert_id).delete()
+    # 同时删关联工单
+    db.query(WorkOrder).filter(WorkOrder.alert_id == alert_id).delete()
+    db.commit()
+    return {"msg": f"预警{alert_id}及关联工单已删除"}
+
+
+@router.put("/{alert_id}/status")
+async def update_alert_status(
+    alert_id: int,
+    status: str = Query(..., regex="^(pending|confirmed|processing|resolved)$"),
+    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    db: Session = Depends(get_db)
+):
+    """更新预警状态: pending/confirmed/processing/resolved"""
+    a = db.query(AlertLog).filter(AlertLog.id == alert_id).first()
+    if not a: return {"error": "预警不存在"}
+    a.status = status
+    if status == "resolved": a.close_time = datetime.now()
+    db.commit()
+    return {"msg": f"预警{alert_id}状态→{status}"}
 
 
 @router.get("/history")

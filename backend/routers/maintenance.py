@@ -18,6 +18,8 @@ class EditWO(BaseModel):
     status: str | None = None
     action_plan: str | None = None
     spare_parts: str | None = None
+    fault_desc: str | None = None
+    root_cause: str | None = None
 
 
 @router.get("/workorders")
@@ -107,8 +109,21 @@ async def edit_workorder(
     if body.status is not None: wo.status = body.status
     if body.action_plan is not None: wo.action_plan = body.action_plan
     if body.spare_parts is not None: wo.spare_parts = body.spare_parts
+    if body.fault_desc is not None: wo.fault_desc = body.fault_desc
+    if body.root_cause is not None: wo.root_cause = body.root_cause
     db.commit()
     return {"msg": f"工单#{wo_id}已更新", "status": wo.status}
+
+
+@router.delete("/workorders/{wo_id}")
+async def delete_workorder(
+    wo_id: int,
+    user: dict = Depends(require_role(["admin"])),
+    db: Session = Depends(get_db)
+):
+    db.query(WorkOrder).filter(WorkOrder.id == wo_id).delete()
+    db.commit()
+    return {"msg": f"工单#{wo_id}已删除"}
 
 
 @router.post("/workorder/auto_create")

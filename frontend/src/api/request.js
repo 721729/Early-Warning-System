@@ -43,7 +43,10 @@ export const healthAPI = {
 export const alertAPI = {
   active: (plantId = 1) => request.get('/alert/active', { params: { plant_id: plantId } }),
   confirm: (alertId, data) => request.post(`/alert/${alertId}/confirm`, data),
-  history: (plantId = 1, start, end) => request.get('/alert/history', { params: { plant_id: plantId, start, end } })
+  history: (plantId = 1, start, end) => request.get('/alert/history', { params: { plant_id: plantId, start, end } }),
+  edit: (alertId, data) => request.put(`/alert/${alertId}`, data),
+  delete: (alertId) => request.delete(`/alert/${alertId}`),
+  updateStatus: (alertId, status) => request.put(`/alert/${alertId}/status`, null, { params: { status } })
 }
 
 export const predictAPI = {
@@ -55,7 +58,9 @@ export const predictAPI = {
 export const maintenanceAPI = {
   advice: (alertId) => request.get(`/maintenance/advice/${alertId}`),
   workorders: () => request.get('/maintenance/workorders'),
-  autoCreateWO: (alertId) => request.post('/maintenance/workorder/auto_create', { alert_id: alertId })
+  autoCreateWO: (alertId) => request.post('/maintenance/workorder/auto_create', { alert_id: alertId }),
+  editWO: (woId, data) => request.put(`/maintenance/workorders/${woId}`, data),
+  deleteWO: (woId) => request.delete(`/maintenance/workorders/${woId}`)
 }
 
 export const userAPI = {
