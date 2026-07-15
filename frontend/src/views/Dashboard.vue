@@ -51,7 +51,7 @@
                 <span class="hname">{{ d.name }}</span>
                 <div class="h-track"><div :class="'hfill '+d.health" :style="{width: d.pct+'%'}"></div></div>
                 <span :class="'htag '+d.health">{{ d.label }} {{ d.pct }}%</span>
-                <span class="hdetail">腐蚀{{ d.rate }}mm/年 AI{{ d.score }}</span>
+                <span class="hdetail">{{ d.rate }}mm/年</span>
               </div>
             </div>
             <div class="health-legend">
@@ -63,7 +63,7 @@
             <div class="sensor-grid">
               <div class="sensor" v-for="s in sensors" :key="s.label">
                 <div class="sl">{{ s.label }}</div>
-                <div class="sv" :class="{ warn: s.warn }">{{ s.value }} <small>{{ s.unit }}</small></div>
+                <div class="sv" :class="{ warn: s.warn, textVal: s.isText }">{{ s.value }} <small v-if="s.unit">{{ s.unit }}</small></div>
               </div>
             </div>
           </section>
@@ -150,18 +150,19 @@ async function pollAI() {
     healthDevs.value = devs.slice(0, 6).map((d, i) => ({
       name: d.name,
       health: colorMap[d.health] || 'green',
-      pct: +((d.wall_thickness_ai || d.wall_thickness || 5.9) / (d.original || 6.0) * 100).toFixed(2),
-      label: d.health === 'orange' ? `预警` : d.health === 'yellow' ? `关注` : `健康`,
+      pct: +((d.wall_thickness_ai || d.wall_thickness || 5.9) / (d.original || 6.0) * 100).toFixed(1),
+      label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
       rate: d.corrosion_rate?.toFixed(2) || '0',
-      score: d.ai_anomaly_score?.toFixed(2) || '0',
     }))
 
     // 传感器数据
+    const score = d1.ai_anomaly_score || 0
+    const scoreLabel = score > 1.0 ? '⚠ 异常' : score > 0.6 ? '⚡ 关注' : '✓ 正常'
     sensors.value = [
       { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: (d1.flue_temp || 570) < 550 },
       { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: (d1.hcl_conc || 1000) > 1500 },
-      { label: 'AI 异常得分', value: (d1.ai_anomaly_score || 0).toFixed(4), unit: '', warn: (d1.ai_anomaly_score || 0) > 0.5 },
-      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(4), unit: 'mm/年', warn: (d1.corrosion_rate || 0) > 0.30 },
+      { label: 'AI 异常检测', value: scoreLabel, unit: '', warn: score > 0.6, isText: true },
+      { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: (d1.corrosion_rate || 0) > 0.30 },
       { label: '壁厚预测', value: (d1.wall_thickness_ai || d1.wall_thickness || 5.9).toFixed(2), unit: 'mm', warn: false },
       { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: (d1.rul_days || 0) < 100 },
     ]
@@ -275,6 +276,7 @@ body { font-family: "PingFang SC","Microsoft YaHei",sans-serif; background: #0a0
 .sl { font-size: 11px; color: #8892b0; margin-bottom: 4px; }
 .sv { font-size: 20px; font-weight: 700; color: #00e5ff; }
 .sv.warn { color: #ff9100; }
+.sv.textVal { font-size: 16px; }
 .sv small { font-size: 11px; color: #8892b0; }
 .alert-mini { background: #1a2332; border-radius: 6px; padding: 10px; margin-bottom: 8px; border-left: 3px solid #ff9100; }
 .alert-mini.red { border-left-color: #ff1744; }
