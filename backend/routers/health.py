@@ -71,14 +71,16 @@ async def overview(
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall,2),"rul_days":5000,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
-    # 设备2-6: 受热面壁厚梯度——入口最薄，越远离炉膛越厚
-    wall_gradient = [0, 0.15, 0.35, 0.6, 0.9, 1.2]
+    # 设备2-6: 以6.0mm原壁厚为基准减去各自位置的腐蚀量（越靠近炉膛腐蚀越快）
+    base_wall = 6.0  # 原始壁厚基准
+    corrosion_factors = [1.0, 0.85, 0.65, 0.45, 0.30, 0.15]  # 入口→出口→中→低→省→风机
+    # 入口腐蚀量 = 6.0 - _sim.wall，其他按比例递减
+    entry_loss = max(0, 6.0 - _sim.wall)
     health_levels = ["yellow","green","green","green","green","green"]
-    # 异常段: 入口报警时，出口和中温也显示关注
     if last["r"] > 2.0:
         health_levels = ["yellow","yellow","yellow","green","green","green"]
     for i in range(1,6):
-        w = round(_sim.wall + wall_gradient[i], 2)
+        w = round(base_wall - entry_loss * corrosion_factors[i], 2)
         r = round(last["r"] * (1.0 - i*0.15), 4)
         result[i].update({"health":health_levels[i],
             "ai_anomaly_score":round(0.05+i*0.02,4),

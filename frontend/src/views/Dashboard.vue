@@ -149,12 +149,12 @@ async function autoAdvance() {
   } catch(e) { console.warn('[绿电哨兵]', e.message) }
 }
 
-// 跳转到异常时段
+// 跳转到异常时段（重置后正确到达异常起点）
 async function jumpToAnomaly() {
   autoMode.value = false
   try {
-    const need = Math.max(2880 - runDays.value, 1)
-    const r = await request.get('/health/overview', { params: { advance: need } })
+    await request.get('/health/overview', { params: { reset: true } })  // 先重置
+    const r = await request.get('/health/overview', { params: { advance: 2880 } }) // 跳到异常段
     if (r.data?.length) updateDashboard(r.data)
   } catch(e) {}
 }
@@ -245,7 +245,7 @@ function updateDashboard(devs) {
   const colorMap = { green: 'green', yellow: 'yellow', orange: 'orange', red: 'red' }
   healthDevs.value = devs.slice(0, 6).map(d => ({
     name: d.name, health: colorMap[d.health] || 'green',
-    pct: Math.min(100, Math.max(0, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0))),
+    pct: Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0))),
     label: d.health === 'orange' ? '⚠ 预警' : d.health === 'yellow' ? '⚡ 关注' : '✓ 健康',
     rate: (d.corrosion_rate || 0.15).toFixed(2),
   }))
