@@ -19,7 +19,7 @@ from config import MATERIAL_PARAMS, SIMULATION
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _MODEL = None
 _NORM = None
-_THRESHOLD = None  # 训练集95分位MSE
+_THRESHOLD = 0.002  # 训练集MSE 95分位
 
 
 def make_config(seq_len=48):
@@ -97,19 +97,18 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # ---- 联合判定 ----
-    threshold = _THRESHOLD or 0.007
+    # ---- 联合判定 (腐蚀速率为主，AI为辅) ----
+    threshold = _THRESHOLD
     anomaly_score = min(mse / max(threshold, 1e-8), 1.0)
-    rate_danger = rate > 0.35
+    rate_high = rate > 0.30
+    rate_danger = rate > 0.50
+    mse_high = mse > threshold * 1.5
+    wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
 
-    if mse > threshold * 3 and rate_danger:
-        alert_level = "orange"
-    elif mse > threshold * 3 or rate_danger:
-        alert_level = "yellow"
-    elif wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3:
-        alert_level = "red"
-    else:
-        alert_level = "green"
+    if wall_danger:                              alert_level = "red"
+    elif rate_danger or (rate_high and mse_high): alert_level = "orange"
+    elif rate_high:                               alert_level = "yellow"
+    else:                                         alert_level = "green"
 
     return {
         "corrosion_rate": round(rate, 4),

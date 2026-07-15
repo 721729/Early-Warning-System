@@ -34,9 +34,10 @@
         </div>
 
         <!-- 通知栏 -->
-        <div v-if="notices.length" class="notice-bar">
+        <div class="notice-bar">
           <span class="notice-icon">📢</span>
           <div class="notice-scroll">
+            <span v-if="!notices.length" class="notice-item">系统运行正常，暂无新通知</span>
             <span v-for="n in notices" :key="n.id" class="notice-item">{{ n.content }} <small>({{ n.created_by }} · {{ n.created_at }})</small></span>
           </div>
         </div>
