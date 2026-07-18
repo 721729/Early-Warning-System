@@ -8,17 +8,13 @@ import numpy as np
 import pandas as pd
 from pathlib import Path
 from config import SIMULATION as S, MATERIAL_PARAMS
+from physics import corrosion_rate as _phys_rate
 
 np.random.seed(42)
 
 def corrosion_rate(hcl_conc, h2s_conc, flue_temp_k, params):
-    """阿伦尼乌斯方程: rate = A × exp(-Ea/(R×T)) × [HCl]^m × [H₂S]^n"""
-    hcl = np.clip(hcl_conc, 1, None)
-    h2s = np.clip(h2s_conc, 1, None)
-    return (params.A
-            * np.exp(-params.Ea / (params.R * flue_temp_k))
-            * (hcl ** params.m)
-            * (h2s ** params.n))
+    """阿伦尼乌斯方程 —— 统一实现见 ml/physics.py (BIZ-001), 此处仅保留旧参数顺序的薄封装"""
+    return _phys_rate(flue_temp_k, hcl_conc, h2s_conc, params)
 
 
 def generate_ar1(n, phi=0.995, sigma=20, init=1000):

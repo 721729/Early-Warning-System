@@ -13,12 +13,13 @@ sys.path.insert(0, str(_PATCHTST_DIR))
 from models.PatchTST import Model as PatchTST_Orig
 from types import SimpleNamespace
 
-from ml.config import MATERIAL_PARAMS, SIMULATION
+from ml.config import DEFAULT_H2S_MG_M3, MATERIAL_PARAMS, SIMULATION
+from ml.physics import anomaly_score, classify_alert, corrosion_rate, load_thresholds
 
 _DEVICE = torch.device("cpu")
 _MODEL = None
 _NORM = None
-_MSE_THRESHOLD = 0.00025  # 默认值，启动时从thresholds.json加载覆盖
+_THRESHOLDS = None  # 启动时从 ml/thresholds.json 加载三级分位阈值 (BIZ-002: 单一来源, 无硬编码回退)
 
 
 def make_config(seq_len=48):
@@ -34,8 +35,8 @@ def make_config(seq_len=48):
 
 
 def load_model(model_path=None):
-    """FastAPI 启动时调用一次，自动加载数据驱动阈值"""
-    global _MODEL, _NORM, _MSE_THRESHOLD
+    """FastAPI 启动时调用一次；阈值文件缺失/缺键直接抛错 (由调用方降级处理), 不再静默用默认值"""
+    global _MODEL, _NORM, _THRESHOLDS
     root = _ML_DIR
     model_path = model_path or (root / "model_c_fusion.pth")
     norm_path = root / "norm_params.npz"
@@ -46,15 +47,11 @@ def load_model(model_path=None):
     _MODEL.load_state_dict(torch.load(model_path, map_location=_DEVICE, weights_only=True))
     _MODEL.eval()
 
-    # 从数据驱动阈值文件加载（训练后自动生成）
-    try:
-        import json
-        with open(root / "thresholds.json") as f:
-            t = json.load(f)
-        _MSE_THRESHOLD = t.get("mse_normal_99pct", 0.00025)
-        print(f"[AI] 阈值已加载: {_MSE_THRESHOLD} (训练数据99分位, 分离比{t.get('separation_ratio','?')}x)")
-    except:
-        print(f"[AI] 使用默认阈值: {_MSE_THRESHOLD}")
+    # 三级统计分位阈值 (ml/calc_thresholds.py 重算生成)
+    _THRESHOLDS = load_thresholds(root / "thresholds.json")
+    print(f"[AI] 三级阈值已加载: p95={_THRESHOLDS['mse_p95']:.6f} "
+          f"p99={_THRESHOLDS['mse_p99']:.6f} p999={_THRESHOLDS['mse_p999']:.6f} "
+          f"(分离比{_THRESHOLDS.get('separation_ratio', '?')}x)")
     return True
 
 
@@ -79,27 +76,20 @@ def predict(window_48h: np.ndarray) -> dict:
     hcl_raw = max(float(raw[1]), 1)
     temp_raw = float(raw[0])
     temp_k = temp_raw + 273.15
-    rate = (params.A * np.exp(-params.Ea / (params.R * temp_k))
-            * (hcl_raw ** params.m) * (300 ** params.n))
+    # 统一物理实现 (ml/physics.py); H2S 名义浓度与训练数据均值一致
+    rate = float(corrosion_rate(temp_k, hcl_raw, DEFAULT_H2S_MG_M3, params))
 
     wall_pred = SIMULATION['original_wall_thickness_mm'] - rate * 48 / (365 * 24)
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # 判定: 使用数据驱动阈值(从thresholds.json加载)
-    thr = _MSE_THRESHOLD
-    mse_high = mse > thr
-    mse_danger = mse > thr * 2
-    rate_high = rate > 0.25
-    wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
+    # 三级分位判定 (BIZ-002): yellow>p95 / orange>p99 / red=壁厚危险或>p99.9 — 纯统计分位驱动
+    alert_level, _flags = classify_alert(
+        mse, wall_pred, _THRESHOLDS,
+        min_wall_mm=SIMULATION['min_allowable_thickness_mm'])
 
-    if wall_danger:                        alert_level = "red"
-    elif mse_danger and rate_high:          alert_level = "orange"
-    elif mse_high:                          alert_level = "yellow"
-    else:                                   alert_level = "green"
-
-    # 异常得分归一化: 0=正常, 1=MSE达到2倍阈值
-    score = min(mse / max(thr * 2, 1e-8), 1.0)
+    # 异常得分归一化: 1.0 = MSE达到99.9分位(red档)
+    score = anomaly_score(mse, _THRESHOLDS)
 
     return {
         "corrosion_rate": round(rate, 4),

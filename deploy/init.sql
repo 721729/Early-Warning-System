@@ -77,7 +77,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_user_time (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 默认管理员种子账号（仅首次建库注入; username 有 UNIQUE 约束, 重复执行不会产生第二条）
+-- 默认管理员种子账号（幂等: INSERT IGNORE + username 唯一约束, 重复执行不产生第二条）
 -- 安全要求: 生产部署前必须重置该账号口令（首次登录强制改密）, 禁止在任何文件中记录明文密码
-INSERT INTO `user` (username, password_hash, role, real_name) VALUES
+INSERT IGNORE INTO `user` (username, password_hash, role, real_name) VALUES
 ('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', 'admin', '系统管理员');

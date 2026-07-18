@@ -65,32 +65,36 @@ THR = {"mse_p95": 1e-4, "mse_p99": 2e-4, "mse_p999": 4e-4}
 
 
 class TestClassifyAlert:
-    @pytest.mark.parametrize("mse,rate,wall,expected", [
-        (5e-5,   0.10, 5.9, "green"),    # 一切正常
-        (1e-4,   0.10, 5.9, "green"),    # 恰好等于p95不触发 (严格大于)
-        (1.5e-4, 0.10, 5.9, "yellow"),   # >p95
-        (2.5e-4, 0.10, 5.9, "yellow"),   # >p99 但速率未确认 → 降级黄
-        (2.5e-4, 1.00, 5.9, "orange"),   # >p99 且速率高
-        (5e-4,   0.10, 5.9, "yellow"),   # >p99.9 但速率未确认 → 仅MSE不足以红
-        (5e-4,   1.00, 5.9, "red"),      # >p99.9 且速率高
-        (5e-5,   0.10, 3.8, "red"),      # 壁厚 < 3.0×1.3=3.9 危险线
-        (5e-5,   0.10, 3.9, "red"),      # 压线即危险 (fail-safe, ≤语义)
-        (5e-5,   0.10, 3.91, "green"),   # 线上方安全侧
+    @pytest.mark.parametrize("mse,wall,expected", [
+        (5e-5,   5.9,  "green"),    # 一切正常
+        (1e-4,   5.9,  "green"),    # 恰好等于p95不触发 (严格大于)
+        (1.5e-4, 5.9,  "yellow"),   # >p95 (5%误报带)
+        (2.5e-4, 5.9,  "orange"),   # >p99 (1%误报带)
+        (5e-4,   5.9,  "red"),      # >p99.9 (0.1%误报带)
+        (5e-5,   3.8,  "red"),      # 壁厚 < 3.0×1.3=3.9 物理红线
+        (5e-5,   3.9,  "red"),      # 压线即危险 (fail-safe, ≤语义)
+        (5e-5,   3.91, "green"),    # 线上方安全侧
     ])
-    def test_three_tier_matrix(self, mse, rate, wall, expected):
-        level, _ = classify_alert(mse, rate, wall, THR)
+    def test_three_tier_matrix(self, mse, wall, expected):
+        level, _ = classify_alert(mse, wall, THR)
         assert level == expected
 
     def test_flags_returned(self):
-        level, flags = classify_alert(5e-4, 1.0, 5.9, THR)
+        level, flags = classify_alert(5e-4, 5.9, THR)
         assert level == "red"
-        assert flags["mse_red"] and flags["rate_high"] and not flags["wall_danger"]
+        assert flags["mse_red"] and not flags["wall_danger"]
 
 
-def test_anomaly_score_normalization():
-    assert anomaly_score(2e-4, THR) == pytest.approx(0.5)
-    assert anomaly_score(1e-3, THR) == 1.0
+def test_anomaly_score_piecewise_quantile_anchored():
+    """[0,p95)→[0,0.5) 正常带; [p95,p999]→[0.5,0.9] 预警带; >p999→(0.9,1.0] 危险带"""
     assert anomaly_score(0.0, THR) == 0.0
+    assert anomaly_score(5e-5, THR) == pytest.approx(0.25)  # 正常带中点
+    assert anomaly_score(1e-4, THR) == pytest.approx(0.5)   # p95 锚点
+    assert anomaly_score(4e-4, THR) == pytest.approx(0.9)   # p999 锚点
+    assert anomaly_score(8e-4, THR) == 1.0                  # 饱和
+    xs = [0.0, 5e-5, 1.5e-4, 2.5e-4, 4e-4, 6e-4, 1e-3]
+    ss = [anomaly_score(x, THR) for x in xs]
+    assert ss == sorted(ss)  # 单调不减
 
 
 def test_load_thresholds_missing_keys_raises(tmp_path):

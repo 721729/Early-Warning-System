@@ -51,15 +51,16 @@ def load_thresholds(path=None) -> dict:
     return t
 
 
-def classify_alert(mse, rate, wall_pred, thresholds,
-                   min_wall_mm=3.0, rate_high=0.25):
-    """三级预警联合判定 (AI重建MSE为主, 物理腐蚀速率交叉验证):
+def classify_alert(mse, wall_pred, thresholds, min_wall_mm=3.0):
+    """三级预警判定 —— 完全由统计分位驱动 (BIZ-002), 无手拍系数:
 
-      red    壁厚 < 1.3×最小允许壁厚, 或 MSE>99.9分位 且 速率偏高
-      orange MSE>99分位 且 速率偏高
-      yellow MSE>95分位 (含"MSE很高但速率未确认"的降级场景)
+      red    壁厚 ≤ 1.3×最小允许壁厚 (物理红线), 或 MSE>99.9分位 (0.1%误报率)
+      orange MSE>99分位   (1%误报率)
+      yellow MSE>95分位   (5%误报率)
       green  其余
 
+    物理腐蚀速率不参与等级门控 (推理侧速率基于基准A, 对异常加速不可观测,
+    在0.25附近掷硬币会随机降级 — 见P0-5修复记录); 速率仍用于RUL/运维建议/展示。
     返回 (level, flags字典)
     """
     flags = {
@@ -68,11 +69,10 @@ def classify_alert(mse, rate, wall_pred, thresholds,
         "mse_yellow": bool(mse > thresholds["mse_p95"]),
         "mse_orange": bool(mse > thresholds["mse_p99"]),
         "mse_red": bool(mse > thresholds["mse_p999"]),
-        "rate_high": bool(rate > rate_high),
     }
-    if flags["wall_danger"] or (flags["mse_red"] and flags["rate_high"]):
+    if flags["wall_danger"] or flags["mse_red"]:
         level = "red"
-    elif flags["mse_orange"] and flags["rate_high"]:
+    elif flags["mse_orange"]:
         level = "orange"
     elif flags["mse_yellow"]:
         level = "yellow"
@@ -82,5 +82,16 @@ def classify_alert(mse, rate, wall_pred, thresholds,
 
 
 def anomaly_score(mse, thresholds):
-    """异常得分归一化: 1.0 = MSE达到99.9分位(red档)"""
-    return min(mse / max(thresholds["mse_p999"], 1e-12), 1.0)
+    """异常得分 —— 分位锚定的分段线性映射, 与三级等级语义对齐:
+
+      [0, p95]    → [0, 0.5)   正常带
+      (p95, p999] → [0.5, 0.9) 预警带 (黄/橙)
+      >p999       → [0.9, 1.0] 危险带 (红), 超出部分饱和到1.0
+    """
+    p95 = max(thresholds["mse_p95"], 1e-12)
+    p999 = max(thresholds["mse_p999"], p95 + 1e-12)
+    if mse <= p95:
+        return 0.5 * mse / p95
+    if mse <= p999:
+        return 0.5 + 0.4 * (mse - p95) / (p999 - p95)
+    return min(0.9 + 0.1 * (mse / p999 - 1.0), 1.0)

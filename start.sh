@@ -60,12 +60,18 @@ echo "       环境就绪 (Docker $(docker --version 2>/dev/null | cut -d' ' -f3
 
 # ---------- 1. Docker ----------
 echo "[1/4] 启动 Docker 数据库..."
+# SEC-003: 口令统一来自 .env, compose 与本脚本均不再内置弱默认值
+if [ ! -f .env ]; then
+  echo "✗ 缺少 .env —— 请先执行: cp .env.example .env 并修改其中的 CHANGE_ME 强口令"
+  exit 1
+fi
+set -a; source .env; set +a
 docker compose up -d 2>/dev/null || echo "       Docker未启动"
 
 # 等 MySQL 就绪
 echo "       等待 MySQL 初始化..."
 for i in $(seq 1 30); do
-  if docker exec gps-mysql mysqladmin ping -u root -proot123 --silent 2>/dev/null; then
+  if docker exec gps-mysql mysqladmin ping -u root -p"$MYSQL_ROOT_PASS" --silent 2>/dev/null; then
     break
   fi
   sleep 1
@@ -73,7 +79,7 @@ done
 
 # 每次启动都运行init.sql (CREATE TABLE IF NOT EXISTS 安全幂等)
 echo "       初始化数据库(幂等安全)..."
-docker exec -i gps-mysql mysql -u root -proot123 green_power_sentinel < deploy/init.sql 2>/dev/null
+docker exec -i gps-mysql mysql -u root -p"$MYSQL_ROOT_PASS" green_power_sentinel < deploy/init.sql 2>/dev/null
 echo "       数据库就绪"
 
 echo "       Docker 就绪"

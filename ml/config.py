@@ -11,7 +11,7 @@ from typing import Dict
 # ============================================================
 @dataclass
 class CorrosionParams:
-    A: float = 2.5e6         # 频率因子 (mm/年)
+    A: float                 # 频率因子 (mm/年) —— 无默认值: 必须显式指定, 单一来源见 MATERIAL_PARAMS (BIZ-001)
     Ea: float = 85000        # 活化能 (J/mol)
     R: float = 8.314         # 气体常数 (J/mol·K)
     m: float = 0.65          # HCl浓度指数
@@ -19,11 +19,20 @@ class CorrosionParams:
     T_ref: float = 823.15    # 参考温度 550°C → Kelvin
 
 
-# 管材参数
+# 管材参数 —— A 的全仓库唯一来源: 训练/推理/实时仿真一律引用此处 (BIZ-001)
 MATERIAL_PARAMS: Dict[str, CorrosionParams] = {
     "T22": CorrosionParams(A=55.0, Ea=85000, m=0.65, n=0.35),
     "TP347H": CorrosionParams(A=42.0, Ea=92000, m=0.55, n=0.30),
 }
+
+# 异常工况加速乘子 (BIZ-001): 异常≠另一套A值, 而是同一物理参数×工况乘子
+#   normal ×1   → T22 正常速率 ≈0.21 mm/年 (575°C, HCl=1000, H2S=300)
+#   anomaly ×30 → 高氯异常14天,  ≈原实现 A=1500 的量级 (55×30=1650)
+#   danger ×45  → 危险模式60天, ≈原实现 A=2500 的量级 (55×45=2475)
+ANOMALY_ACCEL = {"normal": 1.0, "anomaly": 30.0, "danger": 45.0}
+
+# 实时仿真/推理未测H2S时的名义浓度 (mg/m³) —— 与训练数据AR1均值一致 (simulate.py init=300)
+DEFAULT_H2S_MG_M3 = 300.0
 
 # ============================================================
 # 仿真数据参数

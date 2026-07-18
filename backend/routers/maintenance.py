@@ -8,6 +8,13 @@ from backend.middleware.auth import require_role
 from backend.models.database import get_db
 from backend.models.tables import WorkOrder, AlertLog, ALL_ROLES, SUPERVISOR_ROLES, ADMIN_ONLY
 from backend.routers.inventory import check_stock
+from ml.physics import load_thresholds
+
+# 三级分位阈值 (BIZ-002: 单一来源 ml/thresholds.json, 不再硬编码具体数值)
+try:
+    _THR = load_thresholds()
+except Exception:
+    _THR = None
 
 router = APIRouter(prefix="/api/v1/maintenance", tags=["运维建议 & 工单"])
 
@@ -106,7 +113,7 @@ async def get_advice(
         actions.append("检查入炉垃圾前端分拣质量，重点排查含氯塑料混入比例")
     if wall_pct < 60:
         actions.append(f"壁厚仅剩{wall_pct:.0f}%，提前采购备件并规划下月停炉窗口")
-    if mse > 0.0005:
+    if _THR and mse > _THR["mse_p999"]:
         actions.append("AI重建误差显著升高——多参数关联模式已偏离正常，即使单参数未超标也应关注")
 
     action = "。".join(actions) + "。"
@@ -136,11 +143,12 @@ async def get_advice(
 
     stock = check_stock("T22管材", 150) if rate > 1.5 else {"status":"无需","detail":""}
 
+    thr_txt = f"（黄色阈值p95={_THR['mse_p95']:.2e}）" if _THR else ""
     return {
         "alert_id": alert_id, "work_order_id": wo.id if wo else None,
         "alert_level": alert.alert_level,
         "urgency": "紧急" if rate > 3.0 else "关注" if rate > 1.5 else "正常",
-        "phenomenon": (f"AI检测异常: 重建MSE={mse:.4f}（阈值2.08×10⁻⁴），"
+        "phenomenon": (f"AI检测异常: 重建MSE={mse:.4f}{thr_txt}，"
                        f"腐蚀速率{rate:.2f}mm/年（{rate_level}），"
                        f"HCl={hcl:.0f}mg/m³（{hcl_level}），"
                        f"壁厚预测{wall:.2f}mm（剩余{wall_pct:.0f}%）"),

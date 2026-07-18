@@ -33,7 +33,7 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 |------|------|
 | AI 模型 | GitHub 原版 PatchTST (ICLR 2023, IBM Research, MIT), 47 万参数, no-RevIN |
 | 物理约束 | 阿伦尼乌斯腐蚀方程 → 自定义 PhysicsLoss, λ=0.1 |
-| 仿真引擎 | 持久仿真实例，正常A=200→异常A=1500→危险A=2500，15 参数多模态 |
+| 仿真引擎 | 持久仿真实例，A=55 单一来源（`ml/config.py`），异常×30 / 危险×45 工况乘子，15 参数多模态 |
 | 后端 API | FastAPI + SQLAlchemy, JWT + RBAC, 8 模块 25+ 端点 |
 | 数据库 | MySQL 8.0 (Docker), 6 表 |
 | 前端 | Vue 3 + Vite + ECharts, 7 页面工业暗色 UI |
@@ -44,7 +44,7 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 |------|-----------|
 | 用什么模型？ | GitHub 原版 PatchTST (`yuqinie98/PatchTST`), ICLR 2023, MIT 开源 |
 | RevIN 开/关？ | **关。** ON→loss 0.012 但 F1=0.04；OFF→loss 0.020 但 F1=0.86 |
-| 阈值从哪来？ | **训练数据 99 分位自动计算**（`thresholds.json`），不手工调 |
+| 阈值从哪来？ | **正常段 MSE 的 95/99/99.9 统计分位**（`ml/calc_thresholds.py` 自动重算 → `thresholds.json`），不手工调 |
 | 为什么加物理约束？ | 故障样本稀少时防"壁厚不减反增"反物理预测 |
 
 ## 消融实验结果
@@ -56,7 +56,19 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 | 漏报率 | 6.2% | 17.2% | ↑11pp |
 | 物理一致性 | 100% | 100% | 均无反物理输出 |
 
-**实时仿真检测**：正常 MSE ~0.00015，异常 MSE ~0.00057（3.8x），99 分位阈值自动分离。
+**实时仿真检测**：正常 MSE ~0.00015，异常 MSE ~0.00098（6.4x 分离比），三级分位阈值自动分离。
+
+### 三级预警阈值（数据驱动，BIZ-002）
+
+| 等级 | 触发条件 | 统计含义 | 当前值 |
+|------|---------|---------|--------|
+| 🟡 yellow | MSE > p95 | 正常工况 5% 误报率 | 0.000186 |
+| 🟠 orange | MSE > p99 | 正常工况 1% 误报率 | 0.000210 |
+| 🔴 red | MSE > p99.9 **或** 壁厚 ≤ 1.3×最小允许壁厚 | 0.1% 误报率 / 物理红线 | 0.000272 / 3.9mm |
+
+- 物理参数单一来源：`ml/config.py` 的 `MATERIAL_PARAMS`（T22: A=55）；异常工况用 `ANOMALY_ACCEL` 乘子（×1/×30/×45）表达，**不存在第二套 A 值**
+- 物理腐蚀速率不参与等级门控（推理侧速率基于基准 A，对异常加速不可观测），用于 RUL/运维建议/展示
+- **A 或乘子变更后必须重算阈值**：`.venv/bin/python ml/calc_thresholds.py`（seed=42 可复现，统计口径写入 `thresholds.json` 的 `physics` 字段可审计）
 
 ⚠️ 免责声明：仿真数据用阿伦尼乌斯方程生成，AI 用同一方程约束——当前验证的是**架构可行性**，不是模型准确性。真实场景需 Pilot 阶段用检修壁厚数据重新校准 A/Ea/m 参数。
 
@@ -71,6 +83,7 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 
 ```bash
 git clone https://github.com/721729/Early-Warning-System.git && cd green-power-sentinel
+cp .env.example .env        # 必需: 修改其中 CHANGE_ME 为强口令 (compose 无弱默认值, 缺 .env 拒绝启动)
 bash start.sh               # 检测环境 → 一键启动 Docker + 后端 + 前端
 # 浏览器 → http://localhost:3000  admin / admin123
 ```
@@ -83,6 +96,7 @@ cd ml && pip install -r requirements.txt
 python simulate.py && python train.py
 
 # 2. 数据库 + 后端
+cp .env.example .env        # 修改 CHANGE_ME 强口令
 docker compose up -d
 cd ../backend && pip install -r requirements.txt
 uvicorn backend.main:app --host 0.0.0.0 --port 8000 &
@@ -100,8 +114,10 @@ green-power-sentinel/
 │   ├── train.py                 # GitHub原版PatchTST训练
 │   ├── ablation.py              # 消融实验完整指标
 │   ├── inference.py             # 推理服务
-│   ├── config.py                # 腐蚀参数 + 超参数
-│   ├── thresholds.json          # 数据驱动阈值(99分位自动计算)
+│   ├── config.py                # 腐蚀参数(A单一来源) + 工况乘子 + 超参数
+│   ├── physics.py               # 阿伦尼乌斯/三级阈值判定 唯一实现
+│   ├── calc_thresholds.py       # 阈值重算脚本(物理参数变更后必跑)
+│   ├── thresholds.json          # 数据驱动三级阈值(95/99/99.9分位)
 │   └── PatchTST/                # 原版模型代码
 ├── backend/                     # API 层
 │   ├── main.py                  # FastAPI入口 + CORS + 安全头
@@ -133,7 +149,7 @@ green-power-sentinel/
 |------|------|
 | 打开首页 | 仿真自动推进，每 3 秒 1 小时，15 参数实时刷新 |
 | 点 ⏩ 快进到异常 | 跳至异常段（14天高氯腐蚀），AI 检出黄/橙预警 |
-| 点 🔴 危险工况 | Danger模式（60天A=2500），壁厚跌破50%，RUL仅17天 |
+| 点 🔴 危险工况 | Danger模式（60天，×45腐蚀加速乘子），壁厚跌破50%，RUL仅17天 |
 | 点 🔄 重置 | 仿真从头开始 |
 | 点 📋 运维建议 | 三维交叉分析（腐蚀×HCl×壁厚）+备件库存检查+排程 |
 

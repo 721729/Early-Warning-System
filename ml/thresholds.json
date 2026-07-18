@@ -1,10 +1,23 @@
 {
-  "mse_normal_99pct": 0.000208,
-  "mse_normal_mean": 0.000151,
-  "mse_anomaly_mean": 0.000795,
-  "separation_ratio": 5.27,
-  "n_normal": 47,
-  "n_anomaly": 31,
-  "note": "realtime仿真数据的MSE分布——推理时以此为准",
+  "mse_p95": 0.000186,
+  "mse_p99": 0.00021,
+  "mse_p999": 0.000272,
+  "mse_normal_mean": 0.000152,
+  "mse_anomaly_mean": 0.000976,
+  "separation_ratio": 6.43,
+  "n_normal": 237,
+  "n_anomaly": 25,
+  "physics": {
+    "material": "T22",
+    "A": 55.0,
+    "Ea": 85000,
+    "anomaly_accel": {
+      "normal": 1.0,
+      "anomaly": 30.0,
+      "danger": 45.0
+    }
+  },
+  "generated_by": "ml/calc_thresholds.py (seed=42)",
+  "note": "realtime仿真正常段MSE分位 —— 三级预警阈值以此为准: yellow>p95 / orange>p99且速率高 / red=壁厚危险或>p99.9且速率高",
   "_disclaimer": "仿真数据用阿伦尼乌斯方程生成，AI用同一方程约束——这是验证架构可行性，不是证明模型准确性。真实场景需Pilot阶段用检修壁厚数据重新校准。"
 }

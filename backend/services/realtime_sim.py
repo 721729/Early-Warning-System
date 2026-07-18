@@ -1,10 +1,13 @@
 """
 实时仿真引擎 —— 独立实例，每次API调用新建Simulation
+物理: A 单一来源 ml/config.py MATERIAL_PARAMS, 异常=同一A×工况乘子 (BIZ-001)
 """
 import threading
 
 import numpy as np
-from ml.config import MATERIAL_PARAMS
+
+from ml.config import ANOMALY_ACCEL, DEFAULT_H2S_MG_M3, MATERIAL_PARAMS
+from ml.physics import corrosion_rate
 
 _params = MATERIAL_PARAMS["T22"]
 
@@ -12,8 +15,7 @@ class Simulation:
     def __init__(self):
         self.hours = 0; self.wall = 6.0; self.history = []
         self.a_start = 2880; self.a_spike = 2890
-        self.Ea = _params.Ea; self.R = _params.R; self.m = _params.m; self.n = _params.n
-        self.danger = False  # 危险模式: 延长异常期+提高A
+        self.danger = False  # 危险模式: 延长异常期+提高加速乘子
         # 并发安全 (CODE-004前置): 无锁时多线程重复执行推进段, 实测history错乱(500小时膨胀成4000条)
         self._lock = threading.Lock()
 
@@ -30,13 +32,14 @@ class Simulation:
         else: b = 575; s = 8
         return b + np.random.randn() * s
 
-    def _A_for_hour(self, h):
-        """正常A=200, 异常14天A=1500, 危险模式60天A=2500"""
+    def _accel_for_hour(self, h):
+        """异常加速乘子 (BIZ-001): 正常×1, 异常14天×30, 危险模式60天×45
+        同一 A=MATERIAL_PARAMS['T22'].A, 不再造第二套A值; 乘子定义见 ml.config.ANOMALY_ACCEL"""
         if self.danger:
-            if self.a_start <= h < self.a_start + 1440: return 2500.0
+            if self.a_start <= h < self.a_start + 1440: return ANOMALY_ACCEL["danger"]
         else:
-            if self.a_start <= h < self.a_start + 336: return 1500.0
-        return 200.0
+            if self.a_start <= h < self.a_start + 336: return ANOMALY_ACCEL["anomaly"]
+        return ANOMALY_ACCEL["normal"]
 
     def advance_to(self, target):
         with self._lock:
@@ -46,8 +49,9 @@ class Simulation:
             hcl_arr = np.array([self._hcl(h) for h in hours_arr])
             temp_arr = np.array([self._temp(h) for h in hours_arr])
             tk_arr = temp_arr + 273.15
-            A_arr = np.array([self._A_for_hour(h) for h in hours_arr])
-            rate_arr = A_arr * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
+            accel_arr = np.array([self._accel_for_hour(h) for h in hours_arr])
+            # 统一物理实现 (ml/physics.py); H2S 用名义浓度300, 与训练数据均值一致
+            rate_arr = corrosion_rate(tk_arr, hcl_arr, DEFAULT_H2S_MG_M3, _params, accel=accel_arr)
             wall_arr = self.wall - np.cumsum(rate_arr / (365*24))
             for i in range(n):
                 self.history.append({"h": int(hours_arr[i]), "w": round(float(wall_arr[i]),3),

@@ -14,12 +14,13 @@ sys.path.insert(0, str(_PATCHTST_DIR))
 from models.PatchTST import Model as PatchTST_Orig
 from types import SimpleNamespace
 
-from config import MATERIAL_PARAMS, SIMULATION
+from config import DEFAULT_H2S_MG_M3, MATERIAL_PARAMS, SIMULATION
+from physics import anomaly_score, classify_alert, corrosion_rate, load_thresholds
 
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _MODEL = None
 _NORM = None
-_THRESHOLD = 0.002  # 训练集MSE 95分位
+_THRESHOLDS = None  # 从 ml/thresholds.json 加载三级分位阈值 (BIZ-002: 单一来源, 删除硬编码_THRESHOLD)
 
 
 def make_config(seq_len=48):
@@ -34,16 +35,16 @@ def make_config(seq_len=48):
     )
 
 
-def load_model(model_path=None, norm_path=None, threshold=0.007):
-    """FastAPI 启动时调用一次, 加载模型权重和标准化参数"""
-    global _MODEL, _NORM, _THRESHOLD
+def load_model(model_path=None, norm_path=None, thresholds_path=None):
+    """启动时调用一次, 加载模型权重/标准化参数/三级分位阈值"""
+    global _MODEL, _NORM, _THRESHOLDS
     root = Path(__file__).parent
 
     model_path = model_path or (root / "model_c_fusion.pth")
     norm_path = norm_path or (root / "norm_params.npz")
 
     _NORM = np.load(norm_path)
-    _THRESHOLD = threshold
+    _THRESHOLDS = load_thresholds(thresholds_path or (root / "thresholds.json"))
 
     config = make_config()
     _MODEL = PatchTST_Orig(config).to(_DEVICE)
@@ -64,7 +65,7 @@ def predict(window_48h: np.ndarray) -> dict:
         rul_days:         剩余寿命预测 (天)
     }
     """
-    global _MODEL, _NORM, _THRESHOLD
+    global _MODEL, _NORM, _THRESHOLDS
     if _MODEL is None:
         load_model()
 
@@ -79,17 +80,14 @@ def predict(window_48h: np.ndarray) -> dict:
         recon = _MODEL(x_tensor)
     mse = float(torch.mean((recon - x_tensor) ** 2))
 
-    # ---- 物理模型: 阿伦尼乌斯方程 ----
+    # ---- 物理模型: 阿伦尼乌斯方程 (统一实现 ml/physics.py) ----
     params = MATERIAL_PARAMS['T22']
     raw = window_48h[-1]           # 窗口最后时间步的原始值
     hcl_raw = max(float(raw[1]), 1)
     temp_raw = float(raw[0])
     temp_k = temp_raw + 273.15
 
-    rate = (params.A
-            * np.exp(-params.Ea / (params.R * temp_k))
-            * (hcl_raw ** params.m)
-            * (300 ** params.n))
+    rate = float(corrosion_rate(temp_k, hcl_raw, DEFAULT_H2S_MG_M3, params))
 
     # ---- 壁厚预测 & RUL ----
     hours = window_48h.shape[0]
@@ -97,24 +95,17 @@ def predict(window_48h: np.ndarray) -> dict:
     remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
     rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
 
-    # ---- 联合判定 (AI MSE为主，腐蚀速率为辅) ----
-    threshold = _THRESHOLD
-    anomaly_score = min(mse / max(0.0015, 1e-8), 1.0)
-    mse_high = mse > 0.0015
-    mse_danger = mse > 0.0025
-    rate_high = rate > 0.30
-    wall_danger = wall_pred < SIMULATION['min_allowable_thickness_mm'] * 1.3
-
-    if wall_danger:                      alert_level = "red"
-    elif mse_danger and rate_high:        alert_level = "orange"
-    elif mse_high:                        alert_level = "yellow"
-    else:                                 alert_level = "green"
+    # ---- 联合判定: 三级分位阈值 (BIZ-002, 与 backend/services/inference_service.py 同源) ----
+    alert_level, _flags = classify_alert(
+        mse, wall_pred, _THRESHOLDS,
+        min_wall_mm=SIMULATION['min_allowable_thickness_mm'])
+    score = anomaly_score(mse, _THRESHOLDS)
 
     return {
         "corrosion_rate": round(rate, 4),
         "wall_thickness_pred": round(wall_pred, 2),
         "reconstruction_error": round(mse, 6),
-        "anomaly_score": round(anomaly_score, 4),
+        "anomaly_score": round(score, 4),
         "alert_level": alert_level,
         "rul_days": round(rul_days, 1),
         "hcl_conc": round(hcl_raw, 1),
