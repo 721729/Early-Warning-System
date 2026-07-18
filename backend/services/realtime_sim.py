@@ -1,6 +1,8 @@
 """
 实时仿真引擎 —— 独立实例，每次API调用新建Simulation
 """
+import threading
+
 import numpy as np
 from ml.config import MATERIAL_PARAMS
 
@@ -12,6 +14,8 @@ class Simulation:
         self.a_start = 2880; self.a_spike = 2890
         self.Ea = _params.Ea; self.R = _params.R; self.m = _params.m; self.n = _params.n
         self.danger = False  # 危险模式: 延长异常期+提高A
+        # 并发安全 (CODE-004前置): 无锁时多线程重复执行推进段, 实测history错乱(500小时膨胀成4000条)
+        self._lock = threading.Lock()
 
     def _hcl(self, h):
         if self.a_spike <= h < self.a_spike + 2: return np.random.uniform(1700, 2000)
@@ -35,21 +39,22 @@ class Simulation:
         return 200.0
 
     def advance_to(self, target):
-        if target <= self.hours: return
-        n = target - self.hours
-        hours_arr = np.arange(self.hours, target)
-        hcl_arr = np.array([self._hcl(h) for h in hours_arr])
-        temp_arr = np.array([self._temp(h) for h in hours_arr])
-        tk_arr = temp_arr + 273.15
-        A_arr = np.array([self._A_for_hour(h) for h in hours_arr])
-        rate_arr = A_arr * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
-        wall_arr = self.wall - np.cumsum(rate_arr / (365*24))
-        for i in range(n):
-            self.history.append({"h": int(hours_arr[i]), "w": round(float(wall_arr[i]),3),
-                "hcl": round(float(hcl_arr[i]),1), "t": round(float(temp_arr[i]),1),
-                "r": round(float(rate_arr[i]),4)})
-        self.wall = float(wall_arr[-1])
-        self.hours = target
+        with self._lock:
+            if target <= self.hours: return
+            n = target - self.hours
+            hours_arr = np.arange(self.hours, target)
+            hcl_arr = np.array([self._hcl(h) for h in hours_arr])
+            temp_arr = np.array([self._temp(h) for h in hours_arr])
+            tk_arr = temp_arr + 273.15
+            A_arr = np.array([self._A_for_hour(h) for h in hours_arr])
+            rate_arr = A_arr * np.exp(-self.Ea/(self.R*tk_arr)) * (np.clip(hcl_arr,1,None)**self.m) * (300**self.n)
+            wall_arr = self.wall - np.cumsum(rate_arr / (365*24))
+            for i in range(n):
+                self.history.append({"h": int(hours_arr[i]), "w": round(float(wall_arr[i]),3),
+                    "hcl": round(float(hcl_arr[i]),1), "t": round(float(temp_arr[i]),1),
+                    "r": round(float(rate_arr[i]),4)})
+            self.wall = float(wall_arr[-1])
+            self.hours = target
 
     def window(self, sz=48):
         if self.hours < sz: self.advance_to(sz)
