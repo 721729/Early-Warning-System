@@ -7,10 +7,33 @@ import enum
 
 
 class UserRole(str, enum.Enum):
-    值长 = "值长"
-    检修班长 = "检修班长"
-    厂长 = "厂长"
-    管理员 = "管理员"
+    """系统角色 —— 统一英文标识 (SEC-002), UI 中文展示用 display_name"""
+    ADMIN = "admin"                        # 管理员
+    PLANT_MANAGER = "plant_manager"        # 厂长
+    MAINTENANCE_LEAD = "maintenance_lead"  # 检修班长
+    OPERATOR = "operator"                  # 值长
+
+    @property
+    def display_name(self) -> str:
+        """中文展示名 (前端 roleMap 与此保持一致)"""
+        return ROLE_DISPLAY_NAMES[self.value]
+
+
+ROLE_DISPLAY_NAMES = {
+    UserRole.ADMIN.value: "管理员",
+    UserRole.PLANT_MANAGER.value: "厂长",
+    UserRole.MAINTENANCE_LEAD.value: "检修班长",
+    UserRole.OPERATOR.value: "值长",
+}
+
+# ============================================================
+# RBAC 角色组 —— router 装饰器统一引用, 禁止再散落硬编码角色字符串
+# ============================================================
+ALL_ROLES = [r.value for r in UserRole]           # 查看类接口: 全部登录角色
+SUPERVISOR_ROLES = [UserRole.ADMIN.value,         # 处置类接口: 确认/编辑预警与工单
+                    UserRole.PLANT_MANAGER.value,
+                    UserRole.MAINTENANCE_LEAD.value]
+ADMIN_ONLY = [UserRole.ADMIN.value]               # 管理类接口: 用户/批量删除/库存编辑
 
 
 class AlertLevel(str, enum.Enum):
@@ -38,7 +61,7 @@ class User(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     username = Column(String(32), unique=True, nullable=False)
     password_hash = Column(String(128), nullable=False)
-    role = Column(String(16), nullable=False)   # 值长/检修班长/厂长/管理员
+    role = Column(String(32), nullable=False)   # UserRole 枚举值: admin/plant_manager/maintenance_lead/operator
     plant_id = Column(Integer, default=None)
     real_name = Column(String(32), default="")
     is_active = Column(Boolean, default=True)

@@ -6,7 +6,7 @@ from typing import List
 
 from backend.middleware.auth import require_role
 from backend.models.database import get_db
-from backend.models.tables import WorkOrder, AlertLog
+from backend.models.tables import WorkOrder, AlertLog, ALL_ROLES, SUPERVISOR_ROLES, ADMIN_ONLY
 from backend.routers.inventory import check_stock
 
 router = APIRouter(prefix="/api/v1/maintenance", tags=["运维建议 & 工单"])
@@ -25,7 +25,7 @@ class EditWO(BaseModel):
 
 @router.get("/workorders")
 async def list_workorders(
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ) -> List[dict]:
     """所有工单列表"""
@@ -43,7 +43,7 @@ async def list_workorders(
 @router.get("/advice/{alert_id}")
 async def get_advice(
     alert_id: int,
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(ALL_ROLES)),
     db: Session = Depends(get_db)
 ) -> dict:
     """根据预警内容动态生成运维建议(AI推理结果驱动)"""
@@ -157,7 +157,7 @@ async def get_advice(
 @router.put("/workorders/{wo_id}")
 async def edit_workorder(
     wo_id: int, body: EditWO,
-    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(SUPERVISOR_ROLES)),
     db: Session = Depends(get_db)
 ):
     """编辑工单: 指派人员/修改状态/更新方案"""
@@ -175,7 +175,7 @@ async def edit_workorder(
 
 @router.delete("/workorders/all")
 async def delete_all_workorders(
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员一键清空所有工单"""
@@ -187,7 +187,7 @@ async def delete_all_workorders(
 @router.delete("/workorders/{wo_id}")
 async def delete_workorder(
     wo_id: int,
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     db.query(WorkOrder).filter(WorkOrder.id == wo_id).delete()
@@ -198,7 +198,7 @@ async def delete_workorder(
 @router.post("/workorder/auto_create")
 async def auto_create_workorder(
     body: AutoCreateWO,
-    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(SUPERVISOR_ROLES)),
     db: Session = Depends(get_db)
 ):
     """手动为已有预警创建工单"""

@@ -1,6 +1,7 @@
 """趋势预测接口"""
 from fastapi import APIRouter, Depends, Query
 from backend.middleware.auth import require_role
+from backend.models.tables import ALL_ROLES
 
 router = APIRouter(prefix="/api/v1/predict", tags=["趋势预测"])
 
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/api/v1/predict", tags=["趋势预测"])
 async def get_param_trend(
     device_id: int,
     horizon: str = Query("24h"),
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(ALL_ROLES))
 ):
     # Demo数据, 生产调用 ml/inference.py
     hours = 24 if horizon == "24h" else 168
@@ -28,7 +29,7 @@ async def get_param_trend(
 async def get_wall_prediction(
     device_id: int,
     horizon: str = Query("14d"),
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(ALL_ROLES))
 ):
     days = 14 if horizon == "14d" else 7
     data = []
@@ -48,6 +49,6 @@ async def get_wall_prediction(
 @router.get("/rul/{device_id}")
 async def get_rul(
     device_id: int,
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"]))
+    user: dict = Depends(require_role(ALL_ROLES))
 ):
     return {"device_id": device_id, "rul_days": 45, "confidence_low": 30, "confidence_high": 65}

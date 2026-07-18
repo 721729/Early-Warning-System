@@ -7,6 +7,7 @@ import html
 router = APIRouter(prefix="/api/v1/inventory", tags=["备件库存"])
 
 from backend.middleware.auth import require_role
+from backend.models.tables import ALL_ROLES, ADMIN_ONLY
 
 # Demo库存数据（Pilot阶段接MySQL）
 _stock = [
@@ -32,7 +33,7 @@ class StockEdit(BaseModel):
 
 @router.get("/list")
 async def list_inventory(
-    user: dict = Depends(require_role(["admin","值长","检修班长","厂长","管理员"]))
+    user: dict = Depends(require_role(ALL_ROLES))
 ) -> List[dict]:
     """所有用户可查看"""
     return _stock
@@ -41,7 +42,7 @@ async def list_inventory(
 @router.put("/{item_id}")
 async def edit_inventory(
     item_id: int, body: StockEdit,
-    user: dict = Depends(require_role(["admin"]))
+    user: dict = Depends(require_role(ADMIN_ONLY))
 ):
     """仅admin可编辑"""
     for s in _stock:

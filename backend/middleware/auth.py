@@ -49,7 +49,8 @@ async def get_current_user(
 def require_role(allowed_roles: List[str]):
     """
     RBAC权限检查装饰器工厂
-    用法: @require_role(["值长", "检修班长", "厂长", "管理员"])
+    用法: require_role(ALL_ROLES) / require_role(SUPERVISOR_ROLES) / require_role(ADMIN_ONLY)
+    角色组常量统一定义在 backend/models/tables.py (SEC-002: 全英文enum, 禁止硬编码中文角色)
     """
     async def role_checker(user: dict = Depends(get_current_user)):
         if user.get("role") not in allowed_roles:

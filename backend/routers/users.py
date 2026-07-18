@@ -7,7 +7,7 @@ import html
 import re
 
 from backend.models.database import get_db
-from backend.models.tables import User
+from backend.models.tables import User, UserRole, ALL_ROLES, ADMIN_ONLY
 from backend.middleware.auth import get_current_user, require_role
 from backend.config import settings
 
@@ -57,7 +57,7 @@ class CreateUserReq(BaseModel):
     @classmethod
     def clean_role(cls, v):
         # admin 角色只能由现有admin赋予, 此处允许通过, 但create_user接口做二次校验
-        allowed = {"admin", "plant_manager", "maintenance_lead", "operator"}
+        allowed = set(ALL_ROLES)
         if v not in allowed:
             raise HTTPException(status_code=422, detail=f"无效角色: {v}")
         return v
@@ -73,7 +73,7 @@ class UpdateUserReq(BaseModel):
     def clean_role(cls, v):
         if v is None:
             return v
-        allowed = {"admin", "plant_manager", "maintenance_lead", "operator"}
+        allowed = set(ALL_ROLES)
         if v not in allowed:
             raise HTTPException(status_code=422, detail=f"无效角色: {v}")
         return v
@@ -140,7 +140,7 @@ async def get_notifications(
 @router.post("/notifications")
 async def create_notification(
     req: NotificationReq,
-    user: dict = Depends(require_role(["admin"]))
+    user: dict = Depends(require_role(ADMIN_ONLY))
 ):
     """仅管理员可发布通知"""
     n = {
@@ -157,7 +157,7 @@ async def create_notification(
 async def edit_notification(
     nid: int,
     req: NotificationReq,
-    user: dict = Depends(require_role(["admin"]))
+    user: dict = Depends(require_role(ADMIN_ONLY))
 ):
     """管理员编辑通知内容"""
     for n in _notifications:
@@ -171,7 +171,7 @@ async def edit_notification(
 @router.delete("/notifications/{nid}")
 async def delete_notification(
     nid: int,
-    user: dict = Depends(require_role(["admin"]))
+    user: dict = Depends(require_role(ADMIN_ONLY))
 ):
     global _notifications
     _notifications = [n for n in _notifications if n["id"] != nid]
@@ -183,7 +183,7 @@ async def delete_notification(
 # ============================================================
 @router.get("/users")
 async def list_users(
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     users = db.query(User).all()
@@ -197,12 +197,12 @@ async def list_users(
 @router.post("/users")
 async def create_user(
     req: CreateUserReq,
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员创建新用户 —— admin角色仅admin可赋予"""
     # admin角色保护
-    if req.role == "admin" and user["role"] != "admin":
+    if req.role == UserRole.ADMIN.value and user["role"] != UserRole.ADMIN.value:
         raise HTTPException(status_code=403, detail="只有管理员才能创建管理员账号")
 
     existing = db.query(User).filter(User.username == req.username).first()
@@ -229,7 +229,7 @@ async def create_user(
 async def update_user(
     uid: int,
     req: UpdateUserReq,
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员编辑用户（角色、状态、姓名）"""
@@ -238,12 +238,12 @@ async def update_user(
         raise HTTPException(status_code=404, detail="用户不存在")
 
     # 禁止修改自己的角色（防止把自己降级后无法管理）
-    if uid == user["user_id"] and req.role is not None and req.role != "admin":
+    if uid == user["user_id"] and req.role is not None and req.role != UserRole.ADMIN.value:
         raise HTTPException(status_code=403, detail="不能修改自己的管理员角色")
 
     if req.role is not None:
         # admin角色保护: 仅admin可赋予admin角色
-        if req.role == "admin" and user["role"] != "admin":
+        if req.role == UserRole.ADMIN.value and user["role"] != UserRole.ADMIN.value:
             raise HTTPException(status_code=403, detail="只有管理员才能赋予管理员角色")
         target.role = req.role
     if req.real_name is not None:
@@ -262,7 +262,7 @@ async def update_user(
 async def change_user_password(
     uid: int,
     req: ChangePasswordReq,
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员重置任意用户密码，或用户修改自己的密码"""
@@ -274,7 +274,7 @@ async def change_user_password(
     pwd_ctx = CryptContext(schemes=['bcrypt'], deprecated='auto')
 
     # 非管理员用户只能改自己的密码，且需验证旧密码
-    if user["role"] != "admin":
+    if user["role"] != UserRole.ADMIN.value:
         if uid != user["user_id"]:
             raise HTTPException(status_code=403, detail="只能修改自己的密码")
         if not pwd_ctx.verify(req.old_password, target.password_hash):

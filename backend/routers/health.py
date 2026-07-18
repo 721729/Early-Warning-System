@@ -6,7 +6,7 @@ import datetime
 from backend.middleware.auth import require_role
 from backend.routers.alert import create_alert_internal, AutoAlertReq
 from backend.models.database import SessionLocal
-from backend.models.tables import AlertLog
+from backend.models.tables import AlertLog, ALL_ROLES, SUPERVISOR_ROLES
 from backend.services.realtime_sim import Simulation
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
@@ -34,7 +34,7 @@ async def overview(
     plant_id: int = Query(1), advance: int = Query(0, description="推进小时数，0=不推进"),
     reset: bool = Query(False, description="重置仿真"),
     danger: bool = Query(False, description="危险模式——延长异常期+提高A"),
-    user: dict = Depends(require_role(["admin","值长","检修班长","厂长","管理员"]))
+    user: dict = Depends(require_role(ALL_ROLES))
 ) -> List[dict]:
     global _last_hour, _sim
     result = [dict(d) for d in _DEV]
@@ -98,7 +98,7 @@ async def overview(
     return result
 
 @router.put("/alerts/{alert_id}/resolve")
-async def resolve(alert_id: int, user: dict = Depends(require_role(["admin","检修班长","厂长","管理员"]))):
+async def resolve(alert_id: int, user: dict = Depends(require_role(SUPERVISOR_ROLES))):
     db = SessionLocal(); a = db.query(AlertLog).filter(AlertLog.id==alert_id).first()
     if a: a.status="resolved"; a.close_time=datetime.datetime.now(); db.commit()
     db.close(); return {"msg":f"预警{alert_id}已处理"}

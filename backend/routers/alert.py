@@ -7,7 +7,7 @@ from typing import List
 
 from backend.middleware.auth import require_role
 from backend.models.database import get_db
-from backend.models.tables import AlertLog, WorkOrder
+from backend.models.tables import AlertLog, WorkOrder, ALL_ROLES, SUPERVISOR_ROLES, ADMIN_ONLY
 from backend.routers.users import broadcast_notification
 
 router = APIRouter(prefix="/api/v1/alert", tags=["实时预警"])
@@ -73,7 +73,7 @@ def create_alert_internal(db: Session, req: AutoAlertReq) -> dict:
 @router.post("/auto")
 async def auto_create_alert(
     req: AutoAlertReq,
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(ALL_ROLES)),
     db: Session = Depends(get_db)
 ):
     """AI自动创建预警(由health router调用)"""
@@ -83,7 +83,7 @@ async def auto_create_alert(
 @router.get("/active")
 async def get_active_alerts(
     plant_id: int = Query(1),
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(ALL_ROLES)),
     db: Session = Depends(get_db)
 ) -> List[dict]:
     alerts = db.query(AlertLog).filter(AlertLog.status != "resolved").order_by(AlertLog.alert_time.desc()).limit(20).all()
@@ -96,7 +96,7 @@ async def get_active_alerts(
 async def confirm_alert(
     alert_id: int,
     body: AlertConfirm,
-    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(SUPERVISOR_ROLES)),
     db: Session = Depends(get_db)
 ):
     alert = db.query(AlertLog).filter(AlertLog.id == alert_id).first()
@@ -112,7 +112,7 @@ async def confirm_alert(
 @router.put("/{alert_id}")
 async def edit_alert(
     alert_id: int, body: AlertEdit,
-    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(SUPERVISOR_ROLES)),
     db: Session = Depends(get_db)
 ):
     """编辑预警: 修改原因说明/处理记录"""
@@ -125,7 +125,7 @@ async def edit_alert(
 
 @router.delete("/all")
 async def delete_all_alerts(
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员一键清空所有预警"""
@@ -137,7 +137,7 @@ async def delete_all_alerts(
 @router.delete("/{alert_id}")
 async def delete_alert(
     alert_id: int,
-    user: dict = Depends(require_role(["admin"])),
+    user: dict = Depends(require_role(ADMIN_ONLY)),
     db: Session = Depends(get_db)
 ):
     """管理员删除预警"""
@@ -152,7 +152,7 @@ async def delete_alert(
 async def update_alert_status(
     alert_id: int,
     status: str = Query(..., regex="^(pending|confirmed|processing|resolved)$"),
-    user: dict = Depends(require_role(["admin", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(SUPERVISOR_ROLES)),
     db: Session = Depends(get_db)
 ):
     """更新预警状态: pending/confirmed/processing/resolved"""
@@ -171,7 +171,7 @@ async def get_history(
     plant_id: int = Query(1),
     start: str = Query("2026-06-01"),
     end: str = Query("2026-07-31"),
-    user: dict = Depends(require_role(["admin", "值长", "检修班长", "厂长", "管理员"])),
+    user: dict = Depends(require_role(ALL_ROLES)),
     db: Session = Depends(get_db)
 ) -> List[dict]:
     alerts = db.query(AlertLog).order_by(AlertLog.alert_time.desc()).limit(100).all()
