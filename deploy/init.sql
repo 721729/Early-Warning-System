@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `user` (
     id INT PRIMARY KEY AUTO_INCREMENT,
     username VARCHAR(32) NOT NULL UNIQUE,
     password_hash VARCHAR(128) NOT NULL,
-    role ENUM('值长','检修班长','厂长','管理员') NOT NULL,
+    role ENUM('admin','plant_manager','maintenance_lead','operator') NOT NULL,
     plant_id INT DEFAULT NULL,
     real_name VARCHAR(32) DEFAULT '',
     is_active BOOLEAN DEFAULT TRUE,
@@ -77,10 +77,7 @@ CREATE TABLE IF NOT EXISTS audit_log (
     INDEX idx_user_time (user_id, created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
--- 默认管理员账号 (bcrypt hash of 'admin123')
-INSERT INTO user (username, password_hash, role, real_name) VALUES
-('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', 'admin', 'System Admin');
-
--- 默认管理员账号: admin / admin123 (bcrypt hash)
+-- 默认管理员种子账号（仅首次建库注入; username 有 UNIQUE 约束, 重复执行不会产生第二条）
+-- 安全要求: 生产部署前必须重置该账号口令（首次登录强制改密）, 禁止在任何文件中记录明文密码
 INSERT INTO `user` (username, password_hash, role, real_name) VALUES
-('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', '管理员', '系统管理员');
+('admin', '$2b$12$piAFiaXX0yfcYQvGQTUMeOl8xYacE1klljCyBcYgLNJHvktCdBVIC', 'admin', '系统管理员');
