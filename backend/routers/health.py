@@ -41,7 +41,9 @@ async def overview(
     result = [dict(d) for d in _DEV]
 
     if reset: _sim = Simulation()
-    _sim.danger = danger  # 危险模式标记
+    # 危险模式粘性: 一旦置true就保持, 不被后续无danger参数的自动轮询清除.
+    # 否则点击危险按钮后第一次轮询 danger=False 就把×45加速关掉了.
+    if danger: _sim.danger = True
     if advance > 0: _sim.advance_to(_sim.hours + advance)
     elif _sim.hours < 48: _sim.advance_to(48)  # 首次自动初始化
     window, hist = _sim.window(48)
