@@ -256,14 +256,17 @@ function updateDashboard(devs) {
   healthDevs.value = devs.slice(0, 6).map(d => {
     // 健康度百分比: 优先走后端 RUL 驱动的 health_score, 回退兼容旧公式
     const pct = d.health_score != null
-      ? Math.round(d.health_score)
+      ? d.health_score  // 保留1位小数, 让每步0.05-0.5分的变化可见
       : Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0)))
-    // 颜色直接跟 AI 判定, 不再从壁厚比推导 (壁厚比不变但 RUL 崩了是真实矛盾)
-    const hColor = d.health || (pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red')
-    const aiTag = d.health === 'orange' ? ' ⚠AI' : d.health === 'yellow' ? ' ⚡AI' : d.health === 'red' ? ' 🔴AI' : ''
+    // 颜色: AI判定为 yellow/orange/red 时用AI颜色(权威), 否则跟health_score百分比
+    const aiLevel = d.health
+    const hColor = (aiLevel && aiLevel !== 'green')
+      ? aiLevel
+      : (pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red')
+    const aiTag = aiLevel === 'orange' ? ' ⚠AI' : aiLevel === 'yellow' ? ' ⚡AI' : aiLevel === 'red' ? ' 🔴AI' : ''
     return {
       name: d.name, health: hColor, pct,
-      label: (d.health === 'red' ? '🔴' : d.health === 'orange' ? '⚠' : d.health === 'yellow' ? '⚡' : '✓') + aiTag,
+      label: (aiLevel === 'red' ? '🔴' : aiLevel === 'orange' ? '⚠' : aiLevel === 'yellow' ? '⚡' : '✓') + aiTag,
       rate: (d.corrosion_rate || 0.15).toFixed(2),
     }
   })
@@ -286,7 +289,7 @@ function updateDashboard(devs) {
     { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: anomaly, isText: true },
     { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 1.5 || anomaly },
     { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
-    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(0), unit: '天', warn: +(d1.rul_days) < 500 },
+    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(1), unit: '天', warn: +(d1.rul_days) < 500 },
   ]
   // 预警卡片
   if (h !== 'green') {
@@ -295,7 +298,7 @@ function updateDashboard(devs) {
       title: h === 'red' ? '壁厚危险预警' : '过热器腐蚀加速预警',
       time: new Date().toLocaleTimeString('zh-CN'),
       desc: `HCl=${(d1.hcl_conc||0).toFixed(0)}mg/m³, 腐蚀${(d1.corrosion_rate||0).toFixed(2)}mm/年, AI-MSE=${(d1.ai_reconstruction_error||0).toFixed(6)}`,
-      loss: 420000, rul_days: (d1.rul_days||0).toFixed(0), confidence: 85
+      loss: 420000, rul_days: (d1.rul_days||0).toFixed(1), confidence: 85
     }]
   } else { mockAlerts.value = [] }
   activeAlerts.value = mockAlerts.value.length
