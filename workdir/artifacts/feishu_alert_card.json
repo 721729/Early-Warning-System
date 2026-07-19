@@ -1,0 +1,56 @@
+{
+  "_comment": "飞书消息机器人预警卡片模板 - 复制 msg_type 字段及以后的所有内容到自定义机器人 Webhook 测试即可",
+  "msg_type": "interactive",
+  "card": {
+    "header": {
+      "title": {
+        "tag": "plain_text",
+        "content": "🔴 红色预警 · 高能环境-焚烧炉1号-中温过热器"
+      },
+      "template": "red"
+    },
+    "elements": [
+      {
+        "tag": "div",
+        "fields": [
+          {"is_short": true, "text": {"tag": "lark_md", "text": "HCl 浓度\n1850 mg/m³"}},
+          {"is_short": true, "text": {"tag": "lark_md", "text": "腐蚀速率\n11.2 mm/年"}},
+          {"is_short": true, "text": {"tag": "lark_md", "text": "当前壁厚\n3.9 mm"}},
+          {"is_short": true, "text": {"tag": "lark_md", "text": "剩余寿命 RUL\n17 天"}}
+        ]
+      },
+      {"tag": "hr"},
+      {
+        "tag": "div",
+        "text": {
+          "tag": "lark_md",
+          "text": "AI 异常得分：MSE 9.76×10⁻⁴（阈值 2.72×10⁻⁴，3.6×超限）\n关联传感器：炉膛温度/HCl/壁温 4 项同时偏移，组合异常非单点\n建议方案：立即安排停炉检修，重点检查中温过热器向火侧"
+        }
+      },
+      {"tag": "hr"},
+      {
+        "tag": "actions",
+        "actions": [
+          {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "✅ 确认处理"},
+            "type": "primary",
+            "value": {"action": "ack", "alert_id": "REPLACE_WITH_ALERT_ID"}
+          },
+          {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "📋 查看详情"},
+            "type": "default",
+            "url": "https://REPLACE_WITH_YOUR_BASE_URL/alerts/REPLACE_WITH_ALERT_ID"
+          },
+          {
+            "tag": "button",
+            "text": {"tag": "plain_text", "content": "🔧 创建工单"},
+            "type": "default",
+            "value": {"action": "create_workorder", "alert_id": "REPLACE_WITH_ALERT_ID"}
+          }
+        ]
+      }
+    ]
+  }
+}

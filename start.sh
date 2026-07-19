@@ -1,5 +1,7 @@
 #!/bin/bash
 # 绿电哨兵 一键启动
+#   智能环境检测：缺 Docker / Python / Node 自动提示安装并询问
+#   一键启动仿真引擎 + 后端 + 前端 + 阈值自动重算
 # 用法: bash start.sh
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"

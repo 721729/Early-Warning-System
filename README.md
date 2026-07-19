@@ -172,6 +172,39 @@ green-power-sentinel/
 3. 真实DCS对接 + 检修壁厚数据校准阿伦尼乌斯参数
 4. 验收：预警提前量 ≥7 天, 零漏报, 误报率 <10%
 
+### 飞书 AI 接入（PoC 计划）
+
+8.3-8.16 复赛阶段基于飞书 Aily 平台构建"焚烧炉运维助手"，三个接入点：
+
+- **飞书消息机器人**：Webhook 推送橙/红预警交互卡片（标题/正文/确认按钮），端点位 `/api/v1/feishu/push-alert` 已预留，模板见 `workdir/artifacts/feishu_alert_card.json`。
+- **飞书多维表格**：API 同步预警/工单/健康度，端点位 `/api/v1/feishu/sync-alert` 已预留，schema 见 `workdir/artifacts/bitable_schema.md`。
+- **飞书 AI 助手**：基于 Aily 平台 + 运维知识库（令第 10 号/GB 18485/DL/T 654/SOP），8.3-8.16 实现。
+
+当前初赛阶段已通过架构预留 + 端点位 + 产物文件证明可行性。
+
+## 测试覆盖
+
+pytest 单元测试覆盖 4 个核心模块（运行命令：`pytest`，pytest.ini 已配置）：
+
+| 测试文件 | 覆盖内容 |
+|---------|---------|
+| `backend/tests/test_auth.py` | JWT 登录/登出、密码哈希验证、token 黑名单 e2e |
+| `backend/tests/test_rbac.py` | 四角色 × 接口允许/拒绝矩阵、旧中文角色 token 拒绝回归护栏 |
+| `backend/tests/test_realtime_sim_physics.py` | 物理一致性（HCl/壁温/腐蚀速率单调性、A 单一来源 × 乘子） |
+| `backend/tests/test_sim_concurrency.py` | 仿真并发安全（多线程推进一致性）+ RUL 滑动窗口过渡 |
+| `ml/tests/test_physics.py` | 阿伦尼乌斯纯函数、三级阈值判定、RUL 置信区间、health_score 分段 |
+| `ml/tests/test_thresholds_file.py` | thresholds.json 契约（三级分位有序、分离度、可审计性） |
+
+CI: GitHub Actions（配置文件 `.github/workflows/test.yml`），push/PR 自动触发。
+
+## 工程可复现性
+
+- **物理参数 A 单一来源**：`ml/config.py` 的 `MATERIAL_PARAMS.T22.A=55`，训练/推理/实时仿真全仓库唯一来源（BIZ-001）
+- **阈值自动重算**：`ml/calc_thresholds.py` 从正常段 MSE 分布算 95/99/99.9 分位，写入 `thresholds.json`（seed=42 可复现）
+- **阈值文件可审计**：`thresholds.json` 含 `physics` 字段（A/Ea/工况乘子）+ `_disclaimer` 字段（仿真≠实测声明）
+- **一键启动 + 环境检测**：`./start.sh` 自动检测 Docker/Python/Node，缺则提示安装并询问
+- **强口令机制**：`.env.example` 强制改 `CHANGE_ME`，未改拒绝启动
+
 ## License
 
 MIT — 本项目代码可自由使用、修改、分发。依赖的 PatchTST 同为 MIT 协议。
