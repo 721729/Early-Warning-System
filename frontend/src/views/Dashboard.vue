@@ -79,7 +79,6 @@
             </div>
             <div class="health-legend">
               <span><i class="dot g"></i>健康 &gt;90%</span><span><i class="dot y"></i>关注 75-90%</span><span><i class="dot o"></i>预警 50-75%</span><span><i class="dot r"></i>危险 &lt;50%</span>
-              <span style="margin-left:8px;font-size:10px;color:#546e7a">壁厚健康度 | ⚡AI标签=AI检出异常</span>
             </div>
           </section>
           <section class="card live-data">
