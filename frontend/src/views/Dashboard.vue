@@ -266,7 +266,7 @@ function updateDashboard(devs) {
     const aiTag = aiLevel === 'orange' ? ' ⚠AI' : aiLevel === 'yellow' ? ' ⚡AI' : aiLevel === 'red' ? ' 🔴AI' : ''
     return {
       name: d.name, health: hColor, pct,
-      label: (aiLevel === 'red' ? '🔴' : aiLevel === 'orange' ? '⚠' : aiLevel === 'yellow' ? '⚡' : '✓') + aiTag,
+      label: aiTag || (pct > 90 ? '✓ 健康' : pct > 75 ? '⚡ 关注' : pct > 50 ? '⚠ 异常' : '🔴 危险'),
       rate: (d.corrosion_rate || 0.15).toFixed(2),
     }
   })
