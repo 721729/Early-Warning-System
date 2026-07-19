@@ -65,10 +65,13 @@ async def overview(
         except Exception as e:
             if "Duplicate" not in str(e) and "duplicate" not in str(e):
                 print(f"[Alert] {e}")
-        # RUL: 壁厚<4.5mm用全历史最大速率(保守), 否则用近48h平均
+        # RUL 速率: 壁厚<4.5mm时用最近720h(30天)滑动窗口最高速率(保守),
+        #           而非全历史max——全历史max在危险工况后永久锁定在峰值,
+        #           导致RUL被冻住不再更新(每步变化<0.001天, round后不动)。
+        #           正常运行时720h≈30天足够覆盖异常段; 超出30天则回到当前速率。
         rate_48h = np.mean([x["r"] for x in hist[-48:]] or [0.01])
-        rate_max = max((x["r"] for x in _sim.history), default=0.01)  # 全历史
-        rate_rul = max(rate_48h, rate_max) if _sim.wall < 4.5 else rate_48h
+        rate_720h = max((x["r"] for x in _sim.history[-720:]), default=rate_48h)
+        rate_rul = rate_720h if _sim.wall < 4.5 else rate_48h
         rul_sim = calculate_rul(_sim.wall, rate_rul)
         # AI 推断的 RUL (基于基准A, 不含异常加速信息)
         rul_ai = {"rul_days": pred["rul_days"],

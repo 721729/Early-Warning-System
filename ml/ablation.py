@@ -3,7 +3,7 @@
 import numpy as np, pandas as pd, torch, torch.nn as nn, json, sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
-from train import PatchTST, PhysicsLoss
+from train import PatchTST_Orig, PhysicsLoss, make_config
 from config import MATERIAL_PARAMS, SIMULATION
 
 def main():
@@ -31,7 +31,7 @@ def main():
                         batch_size=16, shuffle=True)
 
     def train_one(lam, epochs=30):
-        model = PatchTST().to(DEVICE)
+        model = PatchTST_Orig(make_config()).to(DEVICE)
         opt = torch.optim.AdamW(model.parameters(), lr=1e-4)
         mse = nn.MSELoss()
         phys = PhysicsLoss('T22') if lam > 0 else None

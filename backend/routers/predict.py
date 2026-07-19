@@ -3,7 +3,6 @@ from fastapi import APIRouter, Depends, Query
 
 from backend.middleware.auth import require_role
 from backend.models.tables import ALL_ROLES
-from backend.services.realtime_sim import Simulation
 from ml.physics import calculate_rul
 
 router = APIRouter(prefix="/api/v1/predict", tags=["趋势预测"])

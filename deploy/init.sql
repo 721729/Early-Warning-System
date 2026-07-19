@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS alert_log (
     UNIQUE INDEX uq_device_hour (device_id, alert_hour)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+-- 存量DB迁移 (BIZ-008): 如果alert_log已存在但缺少alert_hour列, 执行:
+-- ALTER TABLE alert_log ADD COLUMN alert_hour INT NOT NULL DEFAULT 0 AFTER device_id;
+-- ALTER TABLE alert_log ADD UNIQUE INDEX uq_device_hour (device_id, alert_hour);
+
 CREATE TABLE IF NOT EXISTS work_order (
     id INT PRIMARY KEY AUTO_INCREMENT,
     alert_id INT DEFAULT NULL,
