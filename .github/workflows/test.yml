@@ -18,7 +18,7 @@ jobs:
         run: |
           pip install --upgrade pip
           pip install torch --index-url https://download.pytorch.org/whl/cpu
-          pip install numpy "fastapi[standard]" sqlalchemy pymysql "python-jose[cryptography]" "passlib[bcrypt]" redis pydantic pydantic-settings httpx pytest
+          pip install numpy fastapi sqlalchemy pymysql "python-jose[cryptography]" "passlib" "bcrypt<4.1" redis pydantic pydantic-settings httpx pytest
 
       - name: Run tests
         run: python -m pytest -q

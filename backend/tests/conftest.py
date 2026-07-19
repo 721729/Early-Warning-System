@@ -17,7 +17,16 @@ from backend.models.tables import User, UserRole
 
 TEST_PASSWORD = "Test#Pass123"
 _pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
-_TEST_HASH = _pwd_ctx.hash(TEST_PASSWORD)  # bcrypt(cost=12) 只算一次, 全部测试复用
+
+# bcrypt 4.1+ 与 passlib 1.7.4 不兼容, 模块级 hash 必炸.
+# 改用惰性求值: 首次使用时才算, 后续复用.
+_test_hash_cache = None
+
+def _get_test_hash():
+    global _test_hash_cache
+    if _test_hash_cache is None:
+        _test_hash_cache = _pwd_ctx.hash(TEST_PASSWORD)
+    return _test_hash_cache
 
 
 class FakeRedis:
@@ -75,9 +84,9 @@ def db_session_factory():
     # 四角色种子用户 (用户名=角色值) + 一个停用账号
     with TestingSession() as db:
         for role in UserRole:
-            db.add(User(username=role.value, password_hash=_TEST_HASH,
+            db.add(User(username=role.value, password_hash=_get_test_hash(),
                         role=role.value, real_name=role.display_name, is_active=True))
-        db.add(User(username="disabled_user", password_hash=_TEST_HASH,
+        db.add(User(username="disabled_user", password_hash=_get_test_hash(),
                     role=UserRole.OPERATOR.value, real_name="停用账号", is_active=False))
         db.commit()
     yield TestingSession
