@@ -22,7 +22,6 @@ dist/
 Thumbs.db
 
 # ML
-ml/*.pth
 ml/*.csv
 ml/__pycache__/
 
