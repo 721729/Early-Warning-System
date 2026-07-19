@@ -254,13 +254,16 @@ function updateDashboard(devs) {
   })
   if (d1.trend) window._trendData = d1.trend
   healthDevs.value = devs.slice(0, 6).map(d => {
-    const pct = Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0)))
-    // 颜色跟壁厚百分比: >90绿, 75-90黄, 50-75橙, <50红
-    const hColor = pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red'
-    const aiTag = d.health === 'orange' ? ' ⚠AI' : d.health === 'yellow' ? ' ⚡AI' : ''
+    // 健康度百分比: 优先走后端 RUL 驱动的 health_score, 回退兼容旧公式
+    const pct = d.health_score != null
+      ? Math.round(d.health_score)
+      : Math.min(100, Math.max(1, +(((d.wall_thickness_ai || d.original || 6) - 3) / 3 * 100).toFixed(0)))
+    // 颜色直接跟 AI 判定, 不再从壁厚比推导 (壁厚比不变但 RUL 崩了是真实矛盾)
+    const hColor = d.health || (pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red')
+    const aiTag = d.health === 'orange' ? ' ⚠AI' : d.health === 'yellow' ? ' ⚡AI' : d.health === 'red' ? ' 🔴AI' : ''
     return {
       name: d.name, health: hColor, pct,
-      label: (pct > 90 ? '✓' : pct > 75 ? '⚡' : pct > 50 ? '⚠' : '🔴') + aiTag,
+      label: (d.health === 'red' ? '🔴' : d.health === 'orange' ? '⚠' : d.health === 'yellow' ? '⚡' : '✓') + aiTag,
       rate: (d.corrosion_rate || 0.15).toFixed(2),
     }
   })

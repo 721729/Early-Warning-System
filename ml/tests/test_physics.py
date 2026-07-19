@@ -7,7 +7,8 @@ import pytest
 
 from ml.config import MATERIAL_PARAMS
 from ml.physics import (anomaly_score, arrhenius_rate, calculate_rul,
-                        classify_alert, corrosion_rate, load_thresholds)
+                        classify_alert, corrosion_rate, health_score,
+                        load_thresholds)
 
 T22 = MATERIAL_PARAMS["T22"]
 
@@ -116,6 +117,33 @@ class TestRUL:
         assert r["rul_days"] == 547.5
         assert r["rul_low_days"] == pytest.approx(383.2, abs=1)
         assert r["rul_high_days"] == pytest.approx(711.8, abs=1)
+
+
+class TestHealthScore:
+    @pytest.mark.parametrize("rul_days,expected_range", [
+        (5000, (95, 100)),   # 正常 ~98%
+        (3446, (80, 100)),   # 正常偏高
+        (365,  (78, 82)),    # 正常带分界点 ≈80
+        (286,  (65, 78)),    # 预警带 ~71
+        (139,  (50, 65)),    # 预警带偏低 ~55
+        (90,   (48, 52)),    # 预警/危险分界 ≈50
+        (30,   (23, 27)),    # 危险/临界分界 ≈25
+        (20,   (14, 20)),    # 临界带 ~16.7
+        (7,    (4, 8)),      # 临界带 ~5.8
+        (1,    (0, 2)),      # 临界带 ~0.8
+    ])
+    def test_piecewise_ranges(self, rul_days, expected_range):
+        s = health_score(rul_days)
+        lo, hi = expected_range
+        assert lo <= s <= hi, f"RUL={rul_days} health={s} not in [{lo},{hi}]"
+
+    def test_monotonic(self):
+        """RUL越高, health_score越大"""
+        scores = [health_score(d) for d in [1, 30, 90, 200, 500, 2000, 5000]]
+        assert scores == sorted(scores)
+
+    def test_zero_rul_gives_zero(self):
+        assert health_score(0) == 0
 
 
 def test_load_thresholds_missing_keys_raises(tmp_path):

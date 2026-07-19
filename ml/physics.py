@@ -121,3 +121,33 @@ def calculate_rul(wall_mm: float, rate_mm_per_year: float,
         "rul_low_days":  round(rul * (1 - conf_ratio), 1),
         "rul_high_days": round(rul * (1 + conf_ratio), 1),
     }
+
+
+# ============================================================
+# 健康度评分 (0-100) — RUL 驱动, 不再用纯壁厚/原始壁厚
+# 壁厚比 6.0→5.9 只差 1.7%, 不能反映腐蚀加速的真实风险.
+# RUL 同时体现"还剩多厚"和"腐蚀多快", 是更合理的健康度指标.
+# ============================================================
+
+# 基准 RUL (理想工况: 全新6.0mm壁厚, A=55正常速率≈0.21mm/年)
+_BASELINE_RUL = (6.0 - 3.0) / 0.21 * 365  # ≈5214天
+
+
+def health_score(rul_days: float, baseline_rul: float = _BASELINE_RUL) -> float:
+    """RUL驱动的设备健康度 (0-100), 分段线性, 变化连续可感知:
+
+      RUL ≥ 365天   → 80-100  (正常带)
+      90 ≤ RUL < 365 → 50-80   (预警带)
+      30 ≤ RUL < 90  → 25-50   (危险带)
+      RUL < 30天     → 0-25    (临界带)
+
+    正常推进中每步 RUL 变化 ~0.5-2 天, 反映到 health_score 为 0.05-0.5 分,
+    前端进度条肉眼可见地移动, 解决"RUL不减"的体感问题.
+    """
+    if rul_days >= 365:
+        return round(80.0 + 20.0 * min((rul_days - 365) / (baseline_rul - 365), 1.0), 1)
+    if rul_days >= 90:
+        return round(50.0 + 30.0 * (rul_days - 90) / (365 - 90), 1)
+    if rul_days >= 30:
+        return round(25.0 + 25.0 * (rul_days - 30) / (90 - 30), 1)
+    return round(25.0 * max(rul_days, 0) / 30.0, 1)

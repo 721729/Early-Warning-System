@@ -8,7 +8,7 @@ from backend.routers.alert import create_alert_internal, AutoAlertReq
 from backend.models.database import SessionLocal
 from backend.models.tables import AlertLog, ALL_ROLES, SUPERVISOR_ROLES
 from backend.services.realtime_sim import Simulation
-from ml.physics import calculate_rul
+from ml.physics import calculate_rul, health_score
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
@@ -83,6 +83,7 @@ async def overview(
             "ai_reconstruction_error":pred["reconstruction_error"],
             "corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall, 2),  # 持久仿真实例的累计壁厚
+            "health_score":health_score(rul_sim["rul_days"]),  # RUL驱动的健康度, 非纯壁厚比
             "sim_hours":_sim.hours,
             "rul_days":rul_sim["rul_days"],
             "rul_low_days":rul_sim["rul_low_days"],
@@ -95,6 +96,7 @@ async def overview(
         result[0].update({"health":"yellow" if last["r"]>.3 else "green",
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall,2),
+            "health_score":health_score(rul_fallback["rul_days"]),
             "rul_days":rul_fallback["rul_days"],
             "rul_low_days":rul_fallback["rul_low_days"],
             "rul_high_days":rul_fallback["rul_high_days"],
@@ -111,10 +113,12 @@ async def overview(
     for i in range(1,6):
         w = round(base_wall - entry_loss * corrosion_factors[i], 2)
         r = round(last["r"] * (1.0 - i*0.15), 4)
+        dev_rul = calculate_rul(w, max(r, 0.01))
         result[i].update({"health":health_levels[i],
             "ai_anomaly_score":round(0.05+i*0.02,4),
             "corrosion_rate":r,
             "wall_thickness_ai":w,
+            "health_score":health_score(dev_rul["rul_days"]),
             "hcl_conc":last["hcl"],"flue_temp":last["t"],
             "data_source":"heuristic_estimate",         # BIZ-006: 设备2-6为经验估算, 非AI推导
             "corrosion_factor":corrosion_factors[i]})
