@@ -82,7 +82,7 @@ AI 设备故障预警系统 / 高能环境产业命题赛道 / 2026 AI 先锋人
 `start.sh` 内置环境检测——缺 Docker/Python/Node 会自动提示安装命令并询问是否安装。
 
 ```bash
-git clone https://github.com/721729/Early-Warning-System.git && cd green-power-sentinel
+git clone --recurse-submodules https://github.com/721729/Early-Warning-System.git && cd green-power-sentinel
 cp .env.example .env        # 必需: 修改其中 CHANGE_ME 为强口令 (compose 无弱默认值, 缺 .env 拒绝启动)
 bash start.sh               # 检测环境 → 一键启动 Docker + 后端 + 前端
 # 浏览器 → http://localhost:3000  admin / admin123
