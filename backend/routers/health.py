@@ -47,6 +47,26 @@ async def overview(
     window, hist = _sim.window(48)
     h = _sim.hours; last = hist[-1]
 
+    # 15 维实时传感器 (window[-1] = 最后时刻原始值, 与训练数据口径一致)
+    last_row = window[-1]
+    live_sensors = {
+        "flue_temp":       round(float(last_row[0]), 1),
+        "hcl_conc":        round(float(last_row[1]), 1),
+        "so2_conc":        round(float(last_row[2]), 1),
+        "co_conc":         round(float(last_row[3]), 1),
+        "o2_content":      round(float(last_row[4]), 1),
+        "particle_conc":   round(float(last_row[5]), 1),
+        "sh1_wall_temp":   round(float(last_row[6]), 1),
+        "sh2_wall_temp":   round(float(last_row[7]), 1),
+        "sh3_wall_temp":   round(float(last_row[8]), 1),
+        "sh1_flue_temp":   round(float(last_row[9]), 1),
+        "sh2_flue_temp":   round(float(last_row[10]), 1),
+        "sh3_flue_temp":   round(float(last_row[11]), 1),
+        "steam_flow":      round(float(last_row[12]), 1),
+        "steam_press":     round(float(last_row[13]), 2),
+        "steam_temp":      round(float(last_row[14]), 1),
+    }
+
     if _MODEL_READY and _predict_fn:
         pred = _predict_fn(window)
         # BIZ-008: DB 唯一约束 (device_id, alert_hour) 自动去重, 替代 _last_hour 全局变量
@@ -90,6 +110,7 @@ async def overview(
             "rul_high_days":rul_sim["rul_high_days"],
             "rul_ai_days":rul_ai["rul_days"],           # AI推断RUL——对比参考
             "data_source":"ai_inference",               # BIZ-006: 数据来源标注
+            "sensors":live_sensors,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
         rul_fallback = calculate_rul(_sim.wall, last["r"])
@@ -101,6 +122,7 @@ async def overview(
             "rul_low_days":rul_fallback["rul_low_days"],
             "rul_high_days":rul_fallback["rul_high_days"],
             "data_source":"physics_simulation",
+            "sensors":live_sensors,
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     # 设备2-6: 以6.0mm原壁厚为基准减去各自位置的腐蚀量（越靠近炉膛腐蚀越快）
     base_wall = 6.0  # 原始壁厚基准
@@ -121,7 +143,8 @@ async def overview(
             "health_score":health_score(dev_rul["rul_days"]),
             "hcl_conc":last["hcl"],"flue_temp":last["t"],
             "data_source":"heuristic_estimate",         # BIZ-006: 设备2-6为经验估算, 非AI推导
-            "corrosion_factor":corrosion_factors[i]})
+            "corrosion_factor":corrosion_factors[i],
+            "sensors":live_sensors})
     result[0]["trend"] = [{"h":x["h"],"w":x["w"],"hcl":x["hcl"],"r":x["r"]} for x in hist[-200:]]
     return result
 

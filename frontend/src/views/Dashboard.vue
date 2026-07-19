@@ -273,23 +273,28 @@ function updateDashboard(devs) {
   const healthMap = { green: '✓ 正常', yellow: '⚡ 关注', orange: '⚠ 异常', red: '🔴 危险' }
   const h = d1.health || 'green'
   const anomaly = h !== 'green'  // AI检测到异常时标记相关参数
+  // 15 维实时传感器: 优先读后端 live_sensors 真数据, 回退兼容旧字段
+  const s = d1.sensors || {}
   sensors.value = [
-    { label: '炉膛温度', value: (d1.flue_temp || 570).toFixed(1), unit: '°C', warn: +(d1.flue_temp) < 555 || anomaly },
-    { label: 'HCl 浓度', value: (d1.hcl_conc || 1000).toFixed(1), unit: 'mg/m³', warn: +(d1.hcl_conc) > 1500 || anomaly },
-    { label: 'SO₂ 浓度', value: ((d1.hcl_conc||1000)*0.2).toFixed(1), unit: 'mg/m³', warn: anomaly },
-    { label: 'CO 浓度', value: (anomaly ? 60 : 50).toFixed(1), unit: 'mg/m³', warn: anomaly },
-    { label: 'O₂ 含量', value: (anomaly ? 6.2 : 8.0).toFixed(1), unit: '%', warn: anomaly },
-    { label: '颗粒物', value: (anomaly ? 26 : 20).toFixed(1), unit: 'mg/m³', warn: anomaly },
-    { label: '高过壁温', value: ((d1.flue_temp||570)-90).toFixed(1), unit: '°C', warn: anomaly },
-    { label: '中过壁温', value: ((d1.flue_temp||570)-110).toFixed(1), unit: '°C', warn: anomaly },
-    { label: '低过壁温', value: ((d1.flue_temp||570)-140).toFixed(1), unit: '°C', warn: anomaly },
-    { label: '主蒸汽流量', value: (anomaly ? 38 : 40).toFixed(1), unit: 't/h', warn: anomaly },
-    { label: '主蒸汽压力', value: (anomaly ? 3.7 : 4.0).toFixed(2), unit: 'MPa', warn: anomaly },
-    { label: '主蒸汽温度', value: (anomaly ? 390 : 400).toFixed(1), unit: '°C', warn: anomaly },
-    { label: 'AI 异常检测', value: healthMap[h], unit: '', warn: anomaly, isText: true },
-    { label: '腐蚀速率', value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 1.5 || anomaly },
-    { label: '壁厚监测', value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
-    { label: '剩余寿命', value: (d1.rul_days || 0).toFixed(1), unit: '天', warn: +(d1.rul_days) < 500 },
+    { label: '炉膛温度',      value: (s.flue_temp     ?? d1.flue_temp ?? 570).toFixed(1), unit: '°C',   warn: +(s.flue_temp) < 555 || anomaly },
+    { label: 'HCl 浓度',      value: (s.hcl_conc      ?? d1.hcl_conc ?? 1000).toFixed(1), unit: 'mg/m³', warn: +(s.hcl_conc) > 1500 || anomaly },
+    { label: 'SO₂ 浓度',      value: (s.so2_conc      ?? 200).toFixed(1), unit: 'mg/m³', warn: +(s.so2_conc) > 300 || anomaly },
+    { label: 'CO 浓度',       value: (s.co_conc       ?? 50).toFixed(1), unit: 'mg/m³', warn: +(s.co_conc) > 80 || anomaly },
+    { label: 'O₂ 含量',       value: (s.o2_content    ?? 8).toFixed(1), unit: '%',     warn: +(s.o2_content) < 5 || +(s.o2_content) > 11 || anomaly },
+    { label: '颗粒物',        value: (s.particle_conc ?? 20).toFixed(1), unit: 'mg/m³', warn: +(s.particle_conc) > 25 || anomaly },
+    { label: '高过壁温',      value: (s.sh1_wall_temp ?? 480).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '中过壁温',      value: (s.sh2_wall_temp ?? 440).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '低过壁温',      value: (s.sh3_wall_temp ?? 400).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '高过烟温',      value: (s.sh1_flue_temp ?? 560).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '中过烟温',      value: (s.sh2_flue_temp ?? 540).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '低过烟温',      value: (s.sh3_flue_temp ?? 510).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: '主蒸汽流量',    value: (s.steam_flow    ?? 40).toFixed(1), unit: 't/h',   warn: anomaly },
+    { label: '主蒸汽压力',    value: (s.steam_press   ?? 4.0).toFixed(2), unit: 'MPa',  warn: anomaly },
+    { label: '主蒸汽温度',    value: (s.steam_temp    ?? 400).toFixed(1), unit: '°C',   warn: anomaly },
+    { label: 'AI 异常检测',   value: healthMap[h], unit: '', warn: anomaly, isText: true },
+    { label: '腐蚀速率',      value: (d1.corrosion_rate || 0).toFixed(2), unit: 'mm/年', warn: +(d1.corrosion_rate) > 1.5 || anomaly },
+    { label: '壁厚监测',      value: (d1.wall_thickness_ai || 5.9).toFixed(2), unit: 'mm', warn: +(d1.wall_thickness_ai) < 4 },
+    { label: '剩余寿命',      value: (d1.rul_days || 0).toFixed(1), unit: '天', warn: +(d1.rul_days) < 500 },
   ]
   // 预警卡片
   if (h !== 'green') {
