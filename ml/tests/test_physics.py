@@ -6,8 +6,8 @@ import numpy as np
 import pytest
 
 from ml.config import MATERIAL_PARAMS
-from ml.physics import (anomaly_score, arrhenius_rate, classify_alert,
-                        corrosion_rate, load_thresholds)
+from ml.physics import (anomaly_score, arrhenius_rate, calculate_rul,
+                        classify_alert, corrosion_rate, load_thresholds)
 
 T22 = MATERIAL_PARAMS["T22"]
 
@@ -95,6 +95,27 @@ def test_anomaly_score_piecewise_quantile_anchored():
     xs = [0.0, 5e-5, 1.5e-4, 2.5e-4, 4e-4, 6e-4, 1e-3]
     ss = [anomaly_score(x, THR) for x in xs]
     assert ss == sorted(ss)  # 单调不减
+
+
+class TestRUL:
+    def test_normal_rul(self):
+        r = calculate_rul(5.5, 0.21)
+        assert r["rul_days"] == pytest.approx(4345.2, abs=1)
+        assert r["rul_low_days"] < r["rul_days"] < r["rul_high_days"]
+
+    def test_thin_wall_rul(self):
+        r = calculate_rul(3.5, 0.30)
+        assert r["rul_days"] == pytest.approx(608.3, abs=1)
+
+    def test_zero_rate_max_rul(self):
+        r = calculate_rul(5.0, 0.0)
+        assert r["rul_days"] == 9999
+
+    def test_confidence_range_30pct(self):
+        r = calculate_rul(4.5, 1.0)
+        assert r["rul_days"] == 547.5
+        assert r["rul_low_days"] == pytest.approx(383.2, abs=1)
+        assert r["rul_high_days"] == pytest.approx(711.8, abs=1)
 
 
 def test_load_thresholds_missing_keys_raises(tmp_path):

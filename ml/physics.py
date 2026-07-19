@@ -95,3 +95,29 @@ def anomaly_score(mse, thresholds):
     if mse <= p999:
         return 0.5 + 0.4 * (mse - p95) / (p999 - p95)
     return min(0.9 + 0.1 * (mse / p999 - 1.0), 1.0)
+
+
+# ============================================================
+# RUL 剩余寿命估算 (BIZ-003: 全仓库唯一实现, 统一
+# inference_service / health / predict 三处调用)
+# ============================================================
+
+def calculate_rul(wall_mm: float, rate_mm_per_year: float,
+                  min_wall_mm: float = 3.0, conf_ratio: float = 0.30):
+    """剩余可用寿命 (天), 含 ±30% 置信区间。
+
+    wall_mm:        当前壁厚 (mm); 仿真/实测均可
+    rate_mm_per_year: 当前腐蚀速率 (mm/年); 仿真/实测均可
+    min_wall_mm:    最小允许壁厚 (mm)
+    conf_ratio:     置信区间比 (±30%)
+    returns: dict { "rul_days", "rul_low_days", "rul_high_days" }
+    """
+    remaining = max(wall_mm - min_wall_mm, 0)
+    if rate_mm_per_year <= 1e-8:
+        return {"rul_days": 9999, "rul_low_days": 9999, "rul_high_days": 9999}
+    rul = remaining / rate_mm_per_year * 365
+    return {
+        "rul_days":      round(rul, 1),
+        "rul_low_days":  round(rul * (1 - conf_ratio), 1),
+        "rul_high_days": round(rul * (1 + conf_ratio), 1),
+    }

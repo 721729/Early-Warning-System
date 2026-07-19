@@ -15,7 +15,7 @@ from models.PatchTST import Model as PatchTST_Orig
 from types import SimpleNamespace
 
 from config import DEFAULT_H2S_MG_M3, MATERIAL_PARAMS, SIMULATION
-from physics import anomaly_score, classify_alert, corrosion_rate, load_thresholds
+from physics import anomaly_score, calculate_rul, classify_alert, corrosion_rate, load_thresholds
 
 _DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 _MODEL = None
@@ -92,8 +92,7 @@ def predict(window_48h: np.ndarray) -> dict:
     # ---- 壁厚预测 & RUL ----
     hours = window_48h.shape[0]
     wall_pred = SIMULATION['original_wall_thickness_mm'] - rate * hours / (365 * 24)
-    remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
-    rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
+    rul = calculate_rul(wall_pred, rate, SIMULATION['min_allowable_thickness_mm'])
 
     # ---- 联合判定: 三级分位阈值 (BIZ-002, 与 backend/services/inference_service.py 同源) ----
     alert_level, _flags = classify_alert(
@@ -107,7 +106,9 @@ def predict(window_48h: np.ndarray) -> dict:
         "reconstruction_error": round(mse, 6),
         "anomaly_score": round(score, 4),
         "alert_level": alert_level,
-        "rul_days": round(rul_days, 1),
+        "rul_days": rul["rul_days"],
+        "rul_low_days": rul["rul_low_days"],
+        "rul_high_days": rul["rul_high_days"],
         "hcl_conc": round(hcl_raw, 1),
         "flue_temp": round(temp_raw, 1),
     }

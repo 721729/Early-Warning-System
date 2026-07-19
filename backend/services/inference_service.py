@@ -14,7 +14,7 @@ from models.PatchTST import Model as PatchTST_Orig
 from types import SimpleNamespace
 
 from ml.config import DEFAULT_H2S_MG_M3, MATERIAL_PARAMS, SIMULATION
-from ml.physics import anomaly_score, classify_alert, corrosion_rate, load_thresholds
+from ml.physics import anomaly_score, calculate_rul, classify_alert, corrosion_rate, load_thresholds
 
 _DEVICE = torch.device("cpu")
 _MODEL = None
@@ -80,8 +80,7 @@ def predict(window_48h: np.ndarray) -> dict:
     rate = float(corrosion_rate(temp_k, hcl_raw, DEFAULT_H2S_MG_M3, params))
 
     wall_pred = SIMULATION['original_wall_thickness_mm'] - rate * 48 / (365 * 24)
-    remaining = max(wall_pred - SIMULATION['min_allowable_thickness_mm'], 0)
-    rul_days = remaining / max(rate, 1e-8) * 365 if rate > 1e-8 else 9999
+    rul = calculate_rul(wall_pred, rate, SIMULATION['min_allowable_thickness_mm'])
 
     # 三级分位判定 (BIZ-002): yellow>p95 / orange>p99 / red=壁厚危险或>p99.9 — 纯统计分位驱动
     alert_level, _flags = classify_alert(
@@ -97,7 +96,9 @@ def predict(window_48h: np.ndarray) -> dict:
         "reconstruction_error": round(mse, 6),
         "anomaly_score": round(score, 4),
         "alert_level": alert_level,
-        "rul_days": round(rul_days, 1),
+        "rul_days": rul["rul_days"],
+        "rul_low_days": rul["rul_low_days"],
+        "rul_high_days": rul["rul_high_days"],
         "hcl_conc": round(hcl_raw, 1),
         "flue_temp": round(temp_raw, 1),
     }

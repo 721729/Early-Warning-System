@@ -8,10 +8,11 @@ from backend.routers.alert import create_alert_internal, AutoAlertReq
 from backend.models.database import SessionLocal
 from backend.models.tables import AlertLog, ALL_ROLES, SUPERVISOR_ROLES
 from backend.services.realtime_sim import Simulation
+from ml.physics import calculate_rul
 
 router = APIRouter(prefix="/api/v1/health", tags=["设备健康度"])
 
-_MODEL_READY = False; _predict_fn = None; _last_hour = -999
+_MODEL_READY = False; _predict_fn = None
 _sim = Simulation()  # 持久仿真实例，启动时创建
 
 try:
@@ -48,22 +49,31 @@ async def overview(
 
     if _MODEL_READY and _predict_fn:
         pred = _predict_fn(window)
-        if h != _last_hour:
-            _last_hour = h
-            try:
-                db = SessionLocal()
-                create_alert_internal(db, AutoAlertReq(device_id=1, device_name="高温过热器(入口)",
-                    alert_level=pred["alert_level"],
-                    reason=f"{'⚠' if pred['alert_level']!='green' else '✓'} AI: MSE={pred['reconstruction_error']:.4f} 腐蚀{pred['corrosion_rate']}mm/年 HCl={pred.get('hcl_conc',0):.0f}mg/m³ 壁厚{pred['wall_thickness_pred']}mm",
-                    corrosion_rate=pred['corrosion_rate'], wall_thickness=pred['wall_thickness_pred'],
-                    rul_days=pred['rul_days'], ai_score=pred['anomaly_score'],
-                    predicted_loss=420000 if pred['alert_level']!='green' else 0))
-                db.close()
-            except Exception as e: print(f"[Alert] {e}")
+        # BIZ-008: DB 唯一约束 (device_id, alert_hour) 自动去重, 替代 _last_hour 全局变量
+        # 同小时重复轮询时 IntegrityError 静默忽略, 重启后可继续推进
+        try:
+            db = SessionLocal()
+            create_alert_internal(db, AutoAlertReq(
+                device_id=1, device_name="高温过热器(入口)",
+                alert_level=pred["alert_level"],
+                reason=f"{'⚠' if pred['alert_level']!='green' else '✓'} AI: MSE={pred['reconstruction_error']:.4f} 腐蚀{pred['corrosion_rate']}mm/年 HCl={pred.get('hcl_conc',0):.0f}mg/m³ 壁厚{pred['wall_thickness_pred']}mm",
+                corrosion_rate=pred['corrosion_rate'], wall_thickness=pred['wall_thickness_pred'],
+                rul_days=pred['rul_days'], ai_score=pred['anomaly_score'],
+                predicted_loss=420000 if pred['alert_level']!='green' else 0,
+                alert_hour=_sim.hours))
+            db.close()
+        except Exception as e:
+            if "Duplicate" not in str(e) and "duplicate" not in str(e):
+                print(f"[Alert] {e}")
         # RUL: 壁厚<4.5mm用全历史最大速率(保守), 否则用近48h平均
         rate_48h = np.mean([x["r"] for x in hist[-48:]] or [0.01])
         rate_max = max((x["r"] for x in _sim.history), default=0.01)  # 全历史
         rate_rul = max(rate_48h, rate_max) if _sim.wall < 4.5 else rate_48h
+        rul_sim = calculate_rul(_sim.wall, rate_rul)
+        # AI 推断的 RUL (基于基准A, 不含异常加速信息)
+        rul_ai = {"rul_days": pred["rul_days"],
+                  "rul_low_days": pred.get("rul_low_days", 0),
+                  "rul_high_days": pred.get("rul_high_days", 0)}
 
         result[0].update({"health":pred["alert_level"],
             "ai_anomaly_score":pred["anomaly_score"],
@@ -71,12 +81,21 @@ async def overview(
             "corrosion_rate":last["r"],
             "wall_thickness_ai":round(_sim.wall, 2),  # 持久仿真实例的累计壁厚
             "sim_hours":_sim.hours,
-            "rul_days":max((_sim.wall-3.0)/max(rate_rul,1e-8)*365,1),
+            "rul_days":rul_sim["rul_days"],
+            "rul_low_days":rul_sim["rul_low_days"],
+            "rul_high_days":rul_sim["rul_high_days"],
+            "rul_ai_days":rul_ai["rul_days"],           # AI推断RUL——对比参考
+            "data_source":"ai_inference",               # BIZ-006: 数据来源标注
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     else:
+        rul_fallback = calculate_rul(_sim.wall, last["r"])
         result[0].update({"health":"yellow" if last["r"]>.3 else "green",
             "ai_anomaly_score":0.15,"corrosion_rate":last["r"],
-            "wall_thickness_ai":round(_sim.wall,2),"rul_days":5000,
+            "wall_thickness_ai":round(_sim.wall,2),
+            "rul_days":rul_fallback["rul_days"],
+            "rul_low_days":rul_fallback["rul_low_days"],
+            "rul_high_days":rul_fallback["rul_high_days"],
+            "data_source":"physics_simulation",
             "hcl_conc":last["hcl"],"flue_temp":last["t"]})
     # 设备2-6: 以6.0mm原壁厚为基准减去各自位置的腐蚀量（越靠近炉膛腐蚀越快）
     base_wall = 6.0  # 原始壁厚基准
@@ -93,7 +112,9 @@ async def overview(
             "ai_anomaly_score":round(0.05+i*0.02,4),
             "corrosion_rate":r,
             "wall_thickness_ai":w,
-            "hcl_conc":last["hcl"],"flue_temp":last["t"]})
+            "hcl_conc":last["hcl"],"flue_temp":last["t"],
+            "data_source":"heuristic_estimate",         # BIZ-006: 设备2-6为经验估算, 非AI推导
+            "corrosion_factor":corrosion_factors[i]})
     result[0]["trend"] = [{"h":x["h"],"w":x["w"],"hcl":x["hcl"],"r":x["r"]} for x in hist[-200:]]
     return result
 

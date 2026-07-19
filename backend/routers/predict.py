@@ -1,7 +1,10 @@
 """趋势预测接口"""
 from fastapi import APIRouter, Depends, Query
+
 from backend.middleware.auth import require_role
 from backend.models.tables import ALL_ROLES
+from backend.services.realtime_sim import Simulation
+from ml.physics import calculate_rul
 
 router = APIRouter(prefix="/api/v1/predict", tags=["趋势预测"])
 
@@ -51,4 +54,15 @@ async def get_rul(
     device_id: int,
     user: dict = Depends(require_role(ALL_ROLES))
 ):
-    return {"device_id": device_id, "rul_days": 45, "confidence_low": 30, "confidence_high": 65}
+    """剩余寿命估算 (BIZ-003: 统一走 ml/physics.calculate_rul, 不再硬编码)"""
+    # Demo: 从全局仿真实例取当前状态 → 共享RUL函数
+    from backend.routers.health import _sim
+    rate = _sim.history[-1]["r"] if _sim.history else 0.01
+    wall = _sim.wall
+    rul = calculate_rul(wall, rate)
+    return {
+        "device_id": device_id,
+        "wall_mm": round(wall, 2),
+        "rate_mm_per_year": round(rate, 4),
+        **rul,
+    }
