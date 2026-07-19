@@ -242,7 +242,9 @@ function updateDashboard(devs) {
   if (!devs?.length) return
   const d1 = devs[0] || {}
   const safeGet = (obj, key, fb) => (obj && obj[key] != null) ? obj[key] : fb
-  runDays.value = safeGet(d1, 'trend', {length:200}).length || 200
+  // 从仿真小时换算实际运行天数 (sim_hours → days)
+  const simHours = safeGet(d1, 'sim_hours', 0)
+  runDays.value = Math.round(simHours / 24)
   Object.assign(data, {
     wall_thickness: safeGet(d1, 'wall_thickness_ai', 5.9),
     corrosion_rate: safeGet(d1, 'corrosion_rate', 0.2),
