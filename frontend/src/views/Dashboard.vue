@@ -264,10 +264,9 @@ function updateDashboard(devs) {
     const hColor = (aiLevel && aiLevel !== 'green')
       ? aiLevel
       : (pct > 90 ? 'green' : pct > 75 ? 'yellow' : pct > 50 ? 'orange' : 'red')
-    const aiTag = aiLevel === 'orange' ? ' ⚠AI' : aiLevel === 'yellow' ? ' ⚡AI' : aiLevel === 'red' ? ' 🔴AI' : ''
     return {
       name: d.name, health: hColor, pct,
-      label: aiTag || (pct > 90 ? '✓ 健康' : pct > 75 ? '⚡ 关注' : pct > 50 ? '⚠ 异常' : '🔴 危险'),
+      label: pct > 90 ? '✓' : pct > 75 ? '⚡' : pct > 50 ? '⚠' : '🔴',
       rate: (d.corrosion_rate || 0.15).toFixed(2),
     }
   })
