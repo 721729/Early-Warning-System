@@ -99,7 +99,7 @@ if [ -f .venv/bin/activate ]; then
 else
   python3 -m venv .venv && source .venv/bin/activate
 fi
-pip install -q -r backend/requirements.txt 2>/dev/null
+pip install -q -r backend/requirements.txt -r ml/requirements.txt 2>/dev/null
 nohup uvicorn backend.main:app --host 0.0.0.0 --port 8000 > /tmp/gps-backend.log 2>&1 &
 sleep 2
 
