@@ -166,7 +166,8 @@ async function jumpToDanger() {
   autoMode.value = false
   try {
     await request.get('/health/overview', { params: { reset: true, danger: true } })
-    const r = await request.get('/health/overview', { params: { advance: 5000, danger: true } })
+    // 跳入危险期中段(×45加速, 约3600h), 而非跳过危险期 — advance=5000会完全错过危险窗口(2880-4320h)
+    const r = await request.get('/health/overview', { params: { advance: 3600, danger: true } })
     if (r.data?.length) updateDashboard(r.data)
   } catch(e) {}
 }
