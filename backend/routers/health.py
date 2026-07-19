@@ -37,7 +37,7 @@ async def overview(
     danger: bool = Query(False, description="危险模式——延长异常期+提高A"),
     user: dict = Depends(require_role(ALL_ROLES))
 ) -> List[dict]:
-    global _last_hour, _sim
+    global _sim
     result = [dict(d) for d in _DEV]
 
     if reset: _sim = Simulation()
