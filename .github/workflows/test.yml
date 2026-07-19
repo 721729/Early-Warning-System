@@ -9,9 +9,16 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: 'recursive'
+
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
-      - run: pip install numpy -r backend/requirements.txt pytest httpx
-      - run: python -m pytest -q
+
+      - name: Install deps
+        run: |
+          pip install --upgrade pip
+          pip install torch --index-url https://download.pytorch.org/whl/cpu
+          pip install numpy "fastapi[standard]" sqlalchemy pymysql "python-jose[cryptography]" "passlib[bcrypt]" redis pydantic pydantic-settings httpx pytest
+
+      - name: Run tests
+        run: python -m pytest -q
