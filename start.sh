@@ -6,6 +6,12 @@
 PROJECT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$PROJECT_DIR"
 
+# 子模块初始化 (审核克隆可能没用 --recurse-submodules)
+if [ ! -f ml/PatchTST/README.md ]; then
+  echo "⚡ 初始化 PatchTST 子模块..."
+  git submodule update --init --recursive 2>/dev/null || echo "   (跳过, 将使用简易模式运行)"
+fi
+
 echo "========================================"
 echo "  绿电哨兵 — 一键启动"
 echo "========================================"
