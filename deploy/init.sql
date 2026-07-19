@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS equipment (
 CREATE TABLE IF NOT EXISTS alert_log (
     id INT PRIMARY KEY AUTO_INCREMENT,
     device_id INT NOT NULL,
+    alert_hour INT NOT NULL DEFAULT 0,
     alert_level ENUM('yellow','orange','red') NOT NULL,
     alert_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     reason TEXT,
@@ -34,7 +35,8 @@ CREATE TABLE IF NOT EXISTS alert_log (
     resolution TEXT,
     close_time DATETIME DEFAULT NULL,
     INDEX idx_device_time (device_id, alert_time),
-    INDEX idx_status (status)
+    INDEX idx_status (status),
+    UNIQUE INDEX uq_device_hour (device_id, alert_hour)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 CREATE TABLE IF NOT EXISTS work_order (

@@ -85,6 +85,7 @@ class AlertLog(Base):
     __tablename__ = "alert_log"
     id = Column(Integer, primary_key=True, autoincrement=True)
     device_id = Column(Integer, nullable=False)
+    alert_hour = Column(Integer, nullable=False, default=0)  # 仿真小时数, 标识去重键 (BIZ-008)
     alert_level = Column(SAEnum(AlertLevel), nullable=False)
     alert_time = Column(DateTime, server_default=func.now())
     reason = Column(Text)
@@ -95,7 +96,8 @@ class AlertLog(Base):
     resolution = Column(Text)
     close_time = Column(DateTime, default=None)
     __table_args__ = (Index("idx_device_time", "device_id", "alert_time"),
-                      Index("idx_status", "status"))
+                      Index("idx_status", "status"),
+                      Index("uq_device_hour", "device_id", "alert_hour", unique=True))
 
 
 class WorkOrder(Base):

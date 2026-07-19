@@ -30,12 +30,14 @@ class AutoAlertReq(BaseModel):
     rul_days: float
     ai_score: float
     predicted_loss: float = 420000
+    alert_hour: int = 0  # 仿真小时数, 配合 uq_device_hour 约束去重 (BIZ-008)
 
 
 def create_alert_internal(db: Session, req: AutoAlertReq) -> dict:
     """供其他模块调用——保存预警到MySQL并广播通知+生成工单"""
     alert = AlertLog(
         device_id=req.device_id,
+        alert_hour=req.alert_hour,
         alert_level=req.alert_level,
         alert_time=datetime.now(),
         reason=req.reason,
