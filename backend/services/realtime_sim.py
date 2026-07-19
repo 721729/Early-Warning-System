@@ -74,8 +74,20 @@ class Simulation:
                 w[i,9]=t-10; w[i,10]=t-25; w[i,11]=t-55
                 w[i,12]=38+np.random.randn()*2; w[i,13]=3.7+np.random.randn()*.15; w[i,14]=390+np.random.randn()*8
             else:
-                w[i,0]=t; w[i,1]=hcl; w[i,2]=hcl*.2
-                w[i,3]=50+np.random.randn()*5; w[i,4]=8+np.random.randn()*.3; w[i,5]=20+np.random.randn()*2
-                w[i,6]=t-90; w[i,7]=t-110; w[i,8]=t-140; w[i,9]=t-15; w[i,10]=t-30; w[i,11]=t-60
-                w[i,12]=40+np.random.randn(); w[i,13]=4.0+np.random.randn()*.05; w[i,14]=400+np.random.randn()
+                # 正常工况: 所有15参数加传感器噪声, 每次 window() 调用值均不同(模拟真实DCS波动)
+                w[i,0]=t+np.random.randn()*5         # 炉膛温度 ±5°C
+                w[i,1]=hcl                            # HCl (AR1自带波动)
+                w[i,2]=hcl*.2+np.random.randn()*10    # SO2 ≈0.2*HCl + 噪声
+                w[i,3]=50+np.random.randn()*5         # CO ±5
+                w[i,4]=8+np.random.randn()*.3         # O2 ±0.3%
+                w[i,5]=20+np.random.randn()*2         # 颗粒物 ±2
+                w[i,6]=t-90+np.random.randn()*5       # 高过壁温
+                w[i,7]=t-110+np.random.randn()*5      # 中过壁温
+                w[i,8]=t-140+np.random.randn()*5      # 低过壁温
+                w[i,9]=t-15+np.random.randn()*5       # 高过烟温
+                w[i,10]=t-30+np.random.randn()*5      # 中过烟温
+                w[i,11]=t-60+np.random.randn()*5      # 低过烟温
+                w[i,12]=40+np.random.randn()          # 蒸汽流量 ±1
+                w[i,13]=4.0+np.random.randn()*.05     # 蒸汽压力 ±0.05
+                w[i,14]=400+np.random.randn()         # 蒸汽温度 ±1
         return w, rec
