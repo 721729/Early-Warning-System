@@ -64,30 +64,25 @@ class Simulation:
         if self.hours < sz: self.advance_to(sz)
         rec = self.history[-sz:]
         w = np.zeros((sz, 15), dtype=np.float32)
-        in_anomaly = self.hours >= self.a_start
+        # 检查当前小时是否在异常加速窗口内 (而非 >=a_start 永久true)
+        anomaly_end = self.a_start + (1440 if self.danger else 336)
+        in_anomaly = self.a_start <= self.hours <= anomaly_end
         for i, r in enumerate(rec):
             t = r["t"]; hcl = r["hcl"]
-            if in_anomaly:
-                w[i,0]=t+np.random.randn()*5; w[i,1]=hcl; w[i,2]=hcl*.2
-                w[i,3]=60+np.random.randn()*8; w[i,4]=6+np.random.randn()*.8; w[i,5]=25+np.random.randn()*4
-                w[i,6]=t-80+np.random.randn()*8; w[i,7]=t-100+np.random.randn()*8; w[i,8]=t-130+np.random.randn()*8
-                w[i,9]=t-10; w[i,10]=t-25; w[i,11]=t-55
-                w[i,12]=38+np.random.randn()*2; w[i,13]=3.7+np.random.randn()*.15; w[i,14]=390+np.random.randn()*8
-            else:
-                # 正常工况: 所有15参数加传感器噪声, 每次 window() 调用值均不同(模拟真实DCS波动)
-                w[i,0]=t+np.random.randn()*5         # 炉膛温度 ±5°C
-                w[i,1]=hcl                            # HCl (AR1自带波动)
-                w[i,2]=hcl*.2+np.random.randn()*10    # SO2 ≈0.2*HCl + 噪声
-                w[i,3]=50+np.random.randn()*5         # CO ±5
-                w[i,4]=8+np.random.randn()*.3         # O2 ±0.3%
-                w[i,5]=20+np.random.randn()*2         # 颗粒物 ±2
-                w[i,6]=t-90+np.random.randn()*5       # 高过壁温
-                w[i,7]=t-110+np.random.randn()*5      # 中过壁温
-                w[i,8]=t-140+np.random.randn()*5      # 低过壁温
-                w[i,9]=t-15+np.random.randn()*5       # 高过烟温
-                w[i,10]=t-30+np.random.randn()*5      # 中过烟温
-                w[i,11]=t-60+np.random.randn()*5      # 低过烟温
-                w[i,12]=40+np.random.randn()          # 蒸汽流量 ±1
-                w[i,13]=4.0+np.random.randn()*.05     # 蒸汽压力 ±0.05
-                w[i,14]=400+np.random.randn()         # 蒸汽温度 ±1
+            # 统一传感器噪声——异常/正常只是基值偏移, 噪声量级一致
+            w[i,0]=t+np.random.randn()*5          # 炉膛温度
+            w[i,1]=hcl                             # HCl
+            w[i,2]=hcl*.2+np.random.randn()*10     # SO2
+            w[i,3]=(60 if in_anomaly else 50)+np.random.randn()*5   # CO
+            w[i,4]=(6 if in_anomaly else 8)+np.random.randn()*.3    # O2
+            w[i,5]=(25 if in_anomaly else 20)+np.random.randn()*2   # 颗粒物
+            w[i,6]=t-90+np.random.randn()*5        # 高过壁温
+            w[i,7]=t-110+np.random.randn()*5       # 中过壁温
+            w[i,8]=t-140+np.random.randn()*5       # 低过壁温
+            w[i,9]=t-15+np.random.randn()*5        # 高过烟温
+            w[i,10]=t-30+np.random.randn()*5       # 中过烟温
+            w[i,11]=t-60+np.random.randn()*5       # 低过烟温
+            w[i,12]=(38 if in_anomaly else 40)+np.random.randn()     # 蒸汽流量
+            w[i,13]=(3.7 if in_anomaly else 4.0)+np.random.randn()*.05  # 蒸汽压力
+            w[i,14]=(390 if in_anomaly else 400)+np.random.randn()   # 蒸汽温度
         return w, rec

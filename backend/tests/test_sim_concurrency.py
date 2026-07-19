@@ -40,37 +40,37 @@ def test_advance_to_interleaved_targets():
     assert all(a >= b for a, b in zip(walls, walls[1:]))
 
 
-def test_rul_rate_uses_sliding_window_not_all_time_max():
-    """RUL 的恶化速率取最近720h滑动窗口而非全历史max,
-    避免危险工况后 rate_rul 被永久锁定在峰值导致 RUL 冻住不更新"""
+def test_rul_rate_blended_windows_smooth_transition():
+    """三窗口加权混合: 168h先衰减, 720h再衰减, 避免二值跳变"""
     sim = Simulation()
-    # 正常段: 累计500h, rate≈0.21, 全历史max≈0.3
+    # 正常段
     sim.advance_to(500)
+    rate_48h = np.mean([x["r"] for x in sim.history[-48:]])
+    rate_168h = max(x["r"] for x in sim.history[-168:])
     rate_720h = max(x["r"] for x in sim.history[-720:])
-    rate_all_max = max(x["r"] for x in sim.history)
-    rul_720h = calculate_rul(sim.wall, rate_720h)
-    # 正常段720h窗口与全历史max应接近
-    assert abs(rate_720h - rate_all_max) < 0.2
+    assert rate_48h < 0.5 and rate_168h < 0.5 and rate_720h < 0.5
 
-    # 危险段: ×45加速后 rate 飙升到10+
+    # 危险段: ×45加速
     sim.danger = True
-    sim.advance_to(sim.a_start + 1440)  # 完整经过危险期 (2880→4320)
-    rate_720h_danger = max(x["r"] for x in sim.history[-720:])
-    rate_all_max_danger = max(x["r"] for x in sim.history)
-    # 危险刚结束时720h窗口包含峰值
-    assert rate_720h_danger > 5.0
+    sim.advance_to(sim.a_start + 1440)
+    rate_48h_d = np.mean([x["r"] for x in sim.history[-48:]])
+    rate_168h_d = max(x["r"] for x in sim.history[-168:])
+    rate_720h_d = max(x["r"] for x in sim.history[-720:])
+    assert rate_48h_d > 5 and rate_168h_d > 5 and rate_720h_d > 5
 
-    # 继续正常推进 730h (超出720h滑动窗口), danger峰值应从窗口滑出
+    # 恢复后 168h 窗口先滑出危险峰值
     sim.danger = False
-    sim.advance_to(sim.hours + 730)
-    rate_720h_after = max(x["r"] for x in sim.history[-720:])
-    rate_all_max_after = max(x["r"] for x in sim.history)
-    # 全历史max仍锁定在danger峰值
-    assert rate_all_max_after > 5.0
-    # 滑动窗口已不含danger段, 回到正常速率量级
-    assert rate_720h_after < 1.0
-    # 两种策略下的RUL差异: 滑动窗口RUL更高(=更真实, 当前工况已恢复正常)
-    rul_720h_after = calculate_rul(sim.wall, max(rate_720h_after, np.mean([x["r"] for x in sim.history[-48:]])))
-    rul_max_after = calculate_rul(sim.wall, rate_all_max_after)
-    assert rul_720h_after["rul_days"] > rul_max_after["rul_days"] * 2, \
-        f"滑动窗口RUL {rul_720h_after['rul_days']} 应远大于全历史RUL {rul_max_after['rul_days']}"
+    sim.advance_to(sim.hours + 200)
+    rate_168h_r1 = max(x["r"] for x in sim.history[-168:])
+    rate_720h_r1 = max(x["r"] for x in sim.history[-720:])
+    assert rate_720h_r1 > 5   # 720h 仍含危险峰
+    assert rate_168h_r1 < 1   # 168h 已滑出 → 先行衰减
+
+    # 720h 窗口也滑出后
+    sim.advance_to(sim.hours + 600)
+    rate_168h_r2 = max(x["r"] for x in sim.history[-168:])
+    rate_720h_r2 = max(x["r"] for x in sim.history[-720:])
+    assert rate_168h_r2 < 1 and rate_720h_r2 < 1  # 全部回到正常
+
+    # 全历史 max 仍锁定(旧逻辑的bug)
+    assert max(x["r"] for x in sim.history) > 5
