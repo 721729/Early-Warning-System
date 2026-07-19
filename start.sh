@@ -31,6 +31,9 @@ if [ "$PY_OK" != "yes" ]; then
   MISSING="$MISSING python3.10+"
 fi
 
+# 检查 python3-venv (创建虚拟环境必需)
+python3 -m venv --help >/dev/null 2>&1 || MISSING="$MISSING python3-venv"
+
 # 检查 Node.js 18+
 NODE_OK=$(node -e "process.exit(parseInt(process.version.slice(1)) >= 18 ? 0 : 1)" 2>/dev/null && echo "yes" || echo "no")
 if [ "$NODE_OK" != "yes" ]; then
@@ -57,6 +60,7 @@ if [ -n "$MISSING" ]; then
       case $m in
         docker)    sudo apt install -y docker.io && sudo systemctl start docker ;;
         python3.10+) sudo apt install -y python3 python3-pip python3-venv ;;
+        python3-venv) sudo apt install -y python3-venv ;;
         node18+)   curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash - && sudo apt install -y nodejs ;;
       esac
     done
