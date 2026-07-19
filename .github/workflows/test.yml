@@ -12,6 +12,6 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - run: pip install torch --extra-index-url https://download.pytorch.org/whl/cpu
-      - run: pip install -r ml/requirements.txt -r backend/requirements.txt pytest httpx
+      - run: pip install torch --index-url https://download.pytorch.org/whl/cpu
+      - run: pip install numpy -r backend/requirements.txt pytest httpx
       - run: python -m pytest -q
