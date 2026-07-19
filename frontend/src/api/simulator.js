@@ -1,6 +1,8 @@
 /**
- * 仿真数据生成器 —— Demo阶段模拟实时DCS数据流
- * 阿伦尼乌斯方程驱动，每3秒更新一次
+ * 离线仿真演示器 —— 本地阿伦尼乌斯独立实例
+ *
+ * ⚠️ BIZ-005: 此模块为离线演示残留, 正式Demo统一走后端 /health/overview → AI 推理。
+ * 当前 Dashboard.vue 未引用本模块 (已完全走后端 realtime_sim), 保留仅供离线开发调试。
  */
 let _timer = null
 let _wallThickness = 5.98  // 起始壁厚
